@@ -51,6 +51,7 @@ Temporary Items
 
 #visual studio
 *.sln
+*.suo
 
 #compiled python file
 *.pyc
