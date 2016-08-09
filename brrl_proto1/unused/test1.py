@@ -1,0 +1,3 @@
+def outf():
+    print 'out'
+

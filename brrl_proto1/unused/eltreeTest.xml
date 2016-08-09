@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test>
+  <song>
+     <title>사랑했지만</title>
+     <length>4:54</length>
+     <가>
+       <a>123</a>
+       <b>456</b>
+       <c>789</c>
+     </가>
+  </song>
+  <song>
+     <title>잊어야 한다는 마음으로</title>
+     <length>3:21</length>
+  </song>
+</test>
