@@ -129,8 +129,11 @@ class GameObject:
         self.moveInMap(dx, dy, obstacleRefs)
 
     def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
+        if isObstacleAt(self.x + dx, self.y + dy):
+            print "cannot move over blocked obstacle!"  
+        else:
+            self.x += dx
+            self.y += dy
 
 #### 약한 참조 저장소 ####
 #지형 저장소
@@ -146,7 +149,7 @@ enemyRefs = []
 #유저
 userRef = None
 
-def beObstacleAt(xInMap, yInMap):
+def isObstacleAt(xInMap, yInMap):
     '''
     입력된 좌표에서 장애물이 있는가?
 
@@ -189,7 +192,7 @@ def createEnemy():
     initX = libtcod.random_get_int(0, 0, npcScreen.w)
     initY = libtcod.random_get_int(0, 0, npcScreen.h)
     while(npcScreen.hasRenderObjAt(initX, initY) or #스크린에 겹치는 애가 있거나
-          beObstacleAt(initX, initY)):              #Obstacle이 겹치는 애가 있거나
+          isObstacleAt(initX, initY)):              #Obstacle이 겹치는 애가 있거나
         initX = libtcod.random_get_int(0, 0, npcScreen.w)
         initY = libtcod.random_get_int(0, 0, npcScreen.h)
 
@@ -315,6 +318,10 @@ class Test_proto1(unittest.TestCase):
         global userRef 
         userRef = gameObjFactory.createGameObject(createUserPlayer)
 
+        #테스트를 위한 특별 참조
+        self.user = userRef()
+        self.other = enemyRefs[0]()
+
         return super(Test_proto1, self).setUp()
 
     @unittest.skip('not now')
@@ -363,7 +370,7 @@ class Test_proto1(unittest.TestCase):
 
     def test_isObstacleAt(self):
         obstacle = obstacleObjRefs[0]()
-        self.assertTrue(beObstacleAt(obstacle.x, obstacle.y))
+        self.assertTrue(isObstacleAt(obstacle.x, obstacle.y))
     
         '''
     #@unittest.skip('GameObjFactory.createGameObject')
@@ -380,47 +387,64 @@ class Test_proto1(unittest.TestCase):
         self.assertEqual( len(obstacleObjRefs), beforeNum + 1, "create GameObject that have Obstacle component but didn't put its weakref at ObstacleRefs")
         '''
 
-    def test_gameObjMove(self):        
+    def test_userAndOtherMoveMethodIsSame(self):        
         #유저와 ai를 움직이게 하는 입력의 결과(함수)는 동일하다.
         dx = 2
         dy = 1
 
-        #유저 이동
-        userBeforeX = userRef().x
-        userBeforeY = userRef().y
-        userRef().move(dx, dy)
-        self.assertEqualPositionInMap,(userRef(), userBeforeX + dx, userBeforeY + dy)
+        #유저 이동        
+        userBeforeX = self.user.x
+        userBeforeY = self.user.y
+        self.user.move(dx, dy)
+        self.assertEqualPositionInMap,(self.user, userBeforeX + dx, userBeforeY + dy)
         
-        #적 이동
-        other = enemyRefs[0]()
-        otherBeforeX = other.x
-        otherBeforeY = other.y
-        other.move(dx, dy)
-        self.assertEqualPositionInMap,(other, otherBeforeX + dx, otherBeforeY + dy)
+        #적 이동        
+        otherBeforeX = self.other.x
+        otherBeforeY = self.other.y
+        self.other.move(dx, dy)
+        self.assertEqualPositionInMap,(self.other, otherBeforeX + dx, otherBeforeY + dy)
         
-    def assertEqualPositionInMap(self, obj, xInMap, yInMap):
-        self.assertEqual(obj.x, xInMap, 
-                         str(obj.x) + " != " + str(xInMap) + 
-                         " move function didn't work")
-        self.assertEqual(obj.y, yInMap, 
-                         str(obj.y) + " != " + str(yInMap) + 
-                         " move function didn't work")
-
-
     def test_gameObjCannotMoveOverBlockedObj(self):
-        #이거 하고 있었다.
-        user = userRef()
-        other = enemyRefs[0]()
+        #given: get obstacle ref
+        obstacle = obstacleObjRefs[0]()
+        #then: assert it is obstacle
+        assert obstacle.obstacleComponent is not None
 
         dx = 2
         dy = 2
-        userBeforeX = userRef().x
-        userBeforeY = userRef().y
-        userRef().move(dx, dy)
-        self.fail("now this test")
-        self.assertEqualPositionInMap,(userRef(), userBeforeX, userBeforeY)
+        
+        #given: user and obstacle.        
+        userBeforeX = self.user.x
+        userBeforeY = self.user.y
+        obstacle.x = userBeforeX + dx
+        obstacle.y = userBeforeY + dy        
+        #when: user try to move over obstacle.        
+        self.user.move(dx, dy)        
+        #then: but user can't move over obstacle.
+        self.assertEqualPositionInMap(self.user, userBeforeX, userBeforeY)
+               
+        #given: other player and obstacle
+        otherBeforeX = self.other.x
+        otherBeforeY = self.other.y
+        obstacle.x = otherBeforeX + dx
+        obstacle.y = otherBeforeY + dy
+        #when: other player try to move over obstacle
+        self.other.move(dx,dy)
+        #then: but other player can't move over obstacle.
+        self.assertEqualPositionInMap(self.other, otherBeforeX, otherBeforeY)
+        
+    def assertEqualPositionInMap(self, obj, xInMap, yInMap):
+        self.assertEqual(obj.x, xInMap, str(obj.x) + " != " + str(xInMap))
+        self.assertEqual(obj.y, yInMap, str(obj.y) + " != " + str(yInMap))
+
+        
 
 
+
+
+
+
+        
 
 if __name__ == '__main__':
     unittest.main()

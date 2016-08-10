@@ -8,3 +8,5 @@ unit_test_path = 'unit_test'
 if __name__ == "__main__":
     all_tests = unittest.TestLoader().discover(unit_test_path, pattern='*.py')
     unittest.TextTestRunner().run(all_tests)
+
+    
