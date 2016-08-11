@@ -92,6 +92,9 @@ class Test_inputHandler(unittest.TestCase):
         key.shift  = False
         self.assertEqual(self.ihandler.inputResult(), 'only lalt')
 
+    def test_sameInputButDifferentOutput(self):
+        self.fail("test for InputResult class")
+
     
     def test_inputModuleInGameLoop(self):
         libtcod.console_set_custom_font( 'font.png', libtcod.FONT_LAYOUT_ASCII_INROW, 32, 2048)
@@ -112,6 +115,8 @@ class Test_inputHandler(unittest.TestCase):
                 print str
             if key.vk == libtcod.KEY_ESCAPE:
                 break
+
+    
 
     def inputChar(self, char):
         self.key.c = ord(char)
