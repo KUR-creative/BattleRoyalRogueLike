@@ -67,7 +67,7 @@ class Fighter(object):
         #시체는 장애물이 아니다
         self.owner.obstacleComponent.blocked = False
         #시체 묘사
-        self.owner.renderComponent.char = u'死' #이거 왜 % 출력 못하나?? 폰트에 없나?
+        self.owner.renderComponent.char = u'死' #이거 '%' 왜  출력 못하나?? 폰트에 없나?
         self.owner.renderComponent.foreColor = libtcod.red
 
         print self.owner.renderComponent.name + " is dead!"
@@ -81,15 +81,33 @@ class Fighter(object):
         self._hp = val
         if self._hp < 0:
             self.die()
-    
 
+class TurnTaker(object):
+    def __init__(self, maxActCount, inputSource):
+        self.maxActCount = maxActCount
+        self.inputSource = inputSource
+        self.actCount = 0        
+
+    def takeTurn(self):
+        self.actCount = self.maxActCount
+        
+        while self.actCount > 0:                
+            result = self.inputSource.inputResult()
+            if result is not None:
+                actCost = result(self.owner)
+                self.actCount -= actCost
+            else:
+                print "idle input",               
+                        
 class GameObject:
     def __init__(self, xInMap, yInMap, 
                  renderComponent=None, 
                  obstacleComponent=None, 
-                 fighterComponent=None):
+                 fighterComponent=None,
+                 turnTakerComponent=None):
         self.x = xInMap
         self.y = yInMap
+        
         self.renderComponent = renderComponent
         if renderComponent is not None:
             self.renderComponent.owner = self
@@ -101,6 +119,10 @@ class GameObject:
         self.fighterComponent = fighterComponent
         if fighterComponent is not None:
             self.fighterComponent.owner = self
+
+        self.turnTakerComponent = turnTakerComponent
+        if turnTakerComponent is not None:
+            self.turnTakerComponent.owner = self
     
     def moveInMap(self, x, y, obstacleRefs):
         #print 'b:',self.x, self.y, ' ',
@@ -411,8 +433,7 @@ class Test_proto1(unittest.TestCase):
         assert obstacle.obstacleComponent is not None
 
         dx = 2
-        dy = 2
-        
+        dy = 2        
         #given: user and obstacle.        
         userBeforeX = self.user.x
         userBeforeY = self.user.y
@@ -433,11 +454,109 @@ class Test_proto1(unittest.TestCase):
         #then: but other player can't move over obstacle.
         self.assertEqualPositionInMap(self.other, otherBeforeX, otherBeforeY)
         
-    def assertEqualPositionInMap(self, obj, xInMap, yInMap):
-        self.assertEqual(obj.x, xInMap, str(obj.x) + " != " + str(xInMap))
-        self.assertEqual(obj.y, yInMap, str(obj.y) + " != " + str(yInMap))
+    def test_whenTurnEndsThenItsActCountMustBeZero(self):
+        #given: someone's turnTaker component
+        testInputTable = { ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): moveTestUpKey}
+        key = libtcod.Key()
+        ihandler = ihdr.InputHandler(key, testInputTable)
 
+        maxCount = 5
+        ttaker = TurnTaker(maxCount, ihandler)
+        self.assertEqual(ttaker.maxActCount, maxCount)
+
+        #when: turnTaker's turn 
+        userPlayer = GameObject(0,0, turnTakerComponent=ttaker)
+        key.vk = libtcod.KEY_UP; key.c = ord(ihdr.NOT_CHAR)
+        ttaker.takeTurn()
+
+        #then: since turnTaker's turn ends, then its actCount must be 0.
+        self.assertEqual(ttaker.actCount, 0)
+
+    @unittest.skip('maybe.. over engineering')
+    def test_TurnTakerActAccordingToControlArgument(self):
+        #given: 
+        ttaker = TurnTaker(5)
+        #when: 
+        ttaker.act('move south')
+        #then: 
+                            
+    def test_takeTurnToMoveDxDy(self):        
+        # 새로만든 inputTable이 연결된 TurnTaker를 가지는 유저객체 생성
+        testInputTable = {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):     moveTestUpKey,
+                          ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR):   moveTestDownKey,
+                          ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR):   moveTestLeftKey}
+        key = libtcod.Key()
+        ihandler = ihdr.InputHandler(key, testInputTable)
+                
+        #given: UP key 입력시 이동하는 양
+        dx = 1
+        dy = 2
+        times = 5
+        sumDx = dx * times
+        sumDy = dy * times
         
+        beforeX = 5
+        beforeY = 7
+
+        ttaker = TurnTaker(times, ihandler)
+        userPlayer = GameObject(beforeX,beforeY, turnTakerComponent=ttaker)
+                
+        #when: 입력 -> 이동한다. moveTestUpKey
+        key.vk = libtcod.KEY_UP; key.c = ord(ihdr.NOT_CHAR)
+        userPlayer.turnTakerComponent.takeTurn()        
+        #then: 
+        self.assertEqualPositionInMap(userPlayer, beforeX + sumDx, beforeY + sumDy)
+
+
+        #given: DOWN key 입력시 이동하는 양
+        dx = -1
+        dy = -2
+        times = 7
+        sumDx = dx * times
+        sumDy = dy * times     
+
+        beforeX = userPlayer.x
+        beforeY = userPlayer.y
+        #when: 다른 입력-> 다른 방식으로 이동 moveTestDownKey
+        key.vk = libtcod.KEY_DOWN; key.c = ord(ihdr.NOT_CHAR)
+        userPlayer.turnTakerComponent.takeTurn()
+        #then
+        self.assertEqualPositionInMap(userPlayer, beforeX + sumDx, beforeY + sumDy)
+        
+                
+        beforeX = userPlayer.x
+        beforeY = userPlayer.y
+        #given: 왼쪽으로 이동 입력 5번(실제 게임의 이동과 비슷함) moveTestLeftKey
+        key.vk = libtcod.KEY_LEFT; key.c = ord(ihdr.NOT_CHAR)        
+        #when: 
+        userPlayer.turnTakerComponent.takeTurn()        
+        #then: 
+        self.assertEqualPositionInMap(userPlayer, beforeX - 5, beforeY)
+                         
+    def assertEqualPositionInMap(self, obj, xInMap, yInMap):
+        self.assertEqual(obj.x, xInMap, "obj.x :" + str(obj.x) + " != " + str(xInMap) + ": expected x")
+        self.assertEqual(obj.y, yInMap, "obj.y :" + str(obj.y) + " != " + str(yInMap) + ": expected y")
+           
+    def test_allPlayersHasSameTurnTakingMethod(self):
+        pass
+        
+
+def moveTestUpKey(user):
+    user.move(5,10)
+    return 5
+
+def moveTestDownKey(user):
+    user.move(-7,-14)
+    return 7
+        
+def moveTestLeftKey(user):
+    ''' 
+    왼쪽으로 한 칸 움직이는데 
+    :returns: 행동력 1이 필요하다. 
+    '''
+    user.move(-1,0)
+    return 1
+    
 
 
 

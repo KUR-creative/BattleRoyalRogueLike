@@ -92,7 +92,7 @@ class Test_inputHandler(unittest.TestCase):
         key.shift  = False
         self.assertEqual(self.ihandler.inputResult(), 'only lalt')
 
-    #@unittest.skip('not yet')
+    
     def test_inputModuleInGameLoop(self):
         libtcod.console_set_custom_font( 'font.png', libtcod.FONT_LAYOUT_ASCII_INROW, 32, 2048)
         libtcod.console_init_root(30, 30, 'python + libtcod tutorial', False)
