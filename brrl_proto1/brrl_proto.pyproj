@@ -95,15 +95,19 @@
     <Compile Include="__init__.py" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="license\" />
     <Folder Include="UI\" />
     <Folder Include="unused\" />
     <Folder Include="unit_test\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="license\LIBTCOD-CREDITS.txt" />
+    <Content Include="license\LIBTCOD-LICENSE.txt" />
+    <Content Include="license\README-SDL.txt" />
     <Content Include="unused\eltreeTest.xml">
       <SubType>Code</SubType>
     </Content>
-    <Content Include="사용법.txt" />
+    <Content Include="README.MD" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

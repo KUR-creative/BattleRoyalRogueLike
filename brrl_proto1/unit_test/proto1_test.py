@@ -345,47 +345,7 @@ class Test_proto1(unittest.TestCase):
         self.other = enemyRefs[0]()
 
         return super(Test_proto1, self).setUp()
-
-    @unittest.skip('not now')
-    def test_gameLoop(self):       
-        #1. 입력 준비
-        mouse = libtcod.Mouse()
-        key = libtcod.Key()
-        ihandler = ihdr.InputHandler(key,proto1InputTable)
-
-        i = 0
-        while not libtcod.console_is_window_closed():
-            # 사용자 입력
-            libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
-            inputResultFunc = ihandler.inputResult()
-
-            # 사용자 입력이 없는데 적들이 멋대로 움직이면 안 된다.
-            # 근데 입력은 유저 플레이어.takeTurn 에서 대기해야 할 텐데.?
-            # 마우스 입력 때문에... 반드시 끊임 없는 이벤트를 받아야 한다.
-
-            #
-            
-            test_output = None
-            if inputResultFunc is not None:
-                # 유저의 턴: 입력에 따른 게임 상태 변화
-                test_output = inputResultFunc()
-                # 적들의 턴
-                for enemyRef in enemyRefs:
-                    enemyRef().takeTurn(obstacleObjRefs) #유저도 동일한 메서드를 써야할 거 같다.
-
-            if test_output == END_LOOP_TEST:
-                #only for test
-                print "pressed ESC to end main loop test!"
-                break
-            
-            # 렌더링
-            # ■■■버퍼 지우기■■■
-            libtcod.console_clear(0) 
-            map.renderAndBlit()
-            userScreen.renderAndBlit()            
-            # ■■■버퍼 비우기■■■
-            libtcod.console_flush() 
-                                   
+                              
     def test_fighterDie(self):
         fighter = Fighter(10,1,1,1,1)
         fighter.hp = 0
@@ -471,7 +431,7 @@ class Test_proto1(unittest.TestCase):
 
         #then: since turnTaker's turn ends, then its actCount must be 0.
         self.assertEqual(ttaker.actCount, 0)
-
+    '''
     @unittest.skip('maybe.. over engineering')
     def test_TurnTakerActAccordingToControlArgument(self):
         #given: 
@@ -479,68 +439,90 @@ class Test_proto1(unittest.TestCase):
         #when: 
         ttaker.act('move south')
         #then: 
-                            
-    def test_takeTurnToMoveDxDy(self):        
-        # 새로만든 inputTable이 연결된 TurnTaker를 가지는 유저객체 생성
+    '''              
+
+    def test_takeTurnToMoveDxDy(self):                
         testInputTable = {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):     moveTestUpKey,
                           ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR):   moveTestDownKey,
                           ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR):   moveTestLeftKey}
         key = libtcod.Key()
         ihandler = ihdr.InputHandler(key, testInputTable)
-                
-        #given: UP key 입력시 이동하는 양
-        dx = 1
-        dy = 2
-        times = 5
-        sumDx = dx * times
-        sumDy = dy * times
         
-        beforeX = 5
-        beforeY = 7
-
-        ttaker = TurnTaker(times, ihandler)
-        userPlayer = GameObject(beforeX,beforeY, turnTakerComponent=ttaker)
-                
-        #when: 입력 -> 이동한다. moveTestUpKey
+        #테스트용 inputTable이 연결된 TurnTaker를 가지는 유저객체 생성
+        ttaker = TurnTaker(5, ihandler)
+        userPlayer = GameObject(1,2, turnTakerComponent=ttaker)
+        
+        #given: UP key 입력시 이동하는 양                
         key.vk = libtcod.KEY_UP; key.c = ord(ihdr.NOT_CHAR)
-        userPlayer.turnTakerComponent.takeTurn()        
-        #then: 
-        self.assertEqualPositionInMap(userPlayer, beforeX + sumDx, beforeY + sumDy)
-
-
-        #given: DOWN key 입력시 이동하는 양
-        dx = -1
-        dy = -2
-        times = 7
-        sumDx = dx * times
-        sumDy = dy * times     
-
-        beforeX = userPlayer.x
-        beforeY = userPlayer.y
-        #when: 다른 입력-> 다른 방식으로 이동 moveTestDownKey
+        self.assertPlayerMoveDeltaXY(userPlayer, +5, +10)        
+        #DOWN key 입력시 이동하는 양                
         key.vk = libtcod.KEY_DOWN; key.c = ord(ihdr.NOT_CHAR)
-        userPlayer.turnTakerComponent.takeTurn()
-        #then
-        self.assertEqualPositionInMap(userPlayer, beforeX + sumDx, beforeY + sumDy)
-        
-                
-        beforeX = userPlayer.x
-        beforeY = userPlayer.y
-        #given: 왼쪽으로 이동 입력 5번(실제 게임의 이동과 비슷함) moveTestLeftKey
+        self.assertPlayerMoveDeltaXY(userPlayer, -7, -14)
+        #Left key 입력 5번(실제 게임의 이동과 비슷함) moveTestLeftKey
         key.vk = libtcod.KEY_LEFT; key.c = ord(ihdr.NOT_CHAR)        
-        #when: 
-        userPlayer.turnTakerComponent.takeTurn()        
-        #then: 
-        self.assertEqualPositionInMap(userPlayer, beforeX - 5, beforeY)
-                         
+        self.assertPlayerMoveDeltaXY(userPlayer, -5, 0)
+                
+    def assertPlayerMoveDeltaXY(self, player, dx, dy):
+        '''플레이어가 움직인 좌표의 양은 dx dy임을 단언한다.'''        
+        beforeX = player.x
+        beforeY = player.y
+        #player move
+        player.turnTakerComponent.takeTurn()                
+        self.assertEqualPositionInMap(player, beforeX + dx, beforeY + dy)
+            
+
     def assertEqualPositionInMap(self, obj, xInMap, yInMap):
         self.assertEqual(obj.x, xInMap, "obj.x :" + str(obj.x) + " != " + str(xInMap) + ": expected x")
         self.assertEqual(obj.y, yInMap, "obj.y :" + str(obj.y) + " != " + str(yInMap) + ": expected y")
            
     def test_allPlayersHasSameTurnTakingMethod(self):
         pass
+
+    #이게 말하자면 인수테스트다. 최종적으로 실제로 작동하는지 확인한다.
+    @unittest.skip('not now')
+    def test_gameLoop(self):     
+        self.fail("test TurnTaker in real game world!")
+        #1. 입력 준비
+        mouse = libtcod.Mouse()
+        key = libtcod.Key()
+        ihandler = ihdr.InputHandler(key,proto1InputTable)
+
+        i = 0
+        while not libtcod.console_is_window_closed():
+            # 사용자 입력
+            libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
+            inputResultFunc = ihandler.inputResult()
+
+            # 사용자 입력이 없는데 적들이 멋대로 움직이면 안 된다.
+            # 근데 입력은 유저 플레이어.takeTurn 에서 대기해야 할 텐데.?
+            # 마우스 입력 때문에... 반드시 끊임 없는 이벤트를 받아야 한다.
+
+            #
+            
+            test_output = None
+            if inputResultFunc is not None:
+                # 유저의 턴: 입력에 따른 게임 상태 변화
+                test_output = inputResultFunc()
+                # 적들의 턴
+                for enemyRef in enemyRefs:
+                    enemyRef().takeTurn(obstacleObjRefs) #유저도 동일한 메서드를 써야할 거 같다.
+
+            if test_output == END_LOOP_TEST:
+                #only for test
+                print "pressed ESC to end main loop test!"
+                break
+            
+            # 렌더링
+            # ■■■버퍼 지우기■■■
+            libtcod.console_clear(0) 
+            map.renderAndBlit()
+            userScreen.renderAndBlit()            
+            # ■■■버퍼 비우기■■■
+            libtcod.console_flush() 
+     
         
 
+############## 테스트용 입력테이블 대응 함수 ##############
 def moveTestUpKey(user):
     user.move(5,10)
     return 5
@@ -556,14 +538,10 @@ def moveTestLeftKey(user):
     '''
     user.move(-1,0)
     return 1
-    
 
-
-
-
-
-
-        
+def pseudoInputTest(user, dx, dy, actCost):
+    user.move(dx, dy)
+    return actCost        
 
 if __name__ == '__main__':
     unittest.main()
