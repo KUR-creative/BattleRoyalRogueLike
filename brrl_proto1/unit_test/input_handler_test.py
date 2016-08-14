@@ -79,7 +79,7 @@ class Test_inputHandler(unittest.TestCase):
         self.assertIsNone(self.ihandler.inputResult())
 
         #lalt 같이 누르기
-        key.vk = 65 #이게 예외가 있을 수 있다!
+        key.vk = 65 #이게 65가 아닐 수 있다!
         key.c = ord('c')
         key.lalt = True
         self.assertEqual(self.ihandler.inputResult(), 'c + lalt')
@@ -107,6 +107,7 @@ class Test_inputHandler(unittest.TestCase):
         self.ihandler.key = key
 
         print "let's manual test! press esc to cancel"
+        i = 0
         while not libtcod.console_is_window_closed():                      
             libtcod.console_flush()  
             libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
@@ -115,6 +116,9 @@ class Test_inputHandler(unittest.TestCase):
                 print str
             if key.vk == libtcod.KEY_ESCAPE:
                 break
+            if i == 10:
+                break
+            i += 1
 
     
 

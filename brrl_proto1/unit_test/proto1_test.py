@@ -6,7 +6,6 @@ import libtcodpy as libtcod
 from os import sys, path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from UI import gui
-
 # import input_handler
 from UI import input_handler as ihdr
 
@@ -86,7 +85,7 @@ class TurnTaker(object):
     def __init__(self, maxActCount, inputSource):
         self.maxActCount = maxActCount
         self.inputSource = inputSource
-        self.actCount = 0        
+        self.actCount = maxActCount
 
     def takeTurn(self):
         self.actCount = self.maxActCount
@@ -453,16 +452,41 @@ class Test_proto1(unittest.TestCase):
         userPlayer = GameObject(1,2, turnTakerComponent=ttaker)
         
         #given: UP key 입력시 이동하는 양                
-        key.vk = libtcod.KEY_UP; key.c = ord(ihdr.NOT_CHAR)
-        self.assertPlayerMoveDeltaXY(userPlayer, +5, +10)        
+        key.vk = libtcod.KEY_UP;    key.c = ord(ihdr.NOT_CHAR)
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, +5, +10)        
         #DOWN key 입력시 이동하는 양                
-        key.vk = libtcod.KEY_DOWN; key.c = ord(ihdr.NOT_CHAR)
-        self.assertPlayerMoveDeltaXY(userPlayer, -7, -14)
+        key.vk = libtcod.KEY_DOWN;  key.c = ord(ihdr.NOT_CHAR)
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, -7, -14)
         #Left key 입력 5번(실제 게임의 이동과 비슷함) moveTestLeftKey
-        key.vk = libtcod.KEY_LEFT; key.c = ord(ihdr.NOT_CHAR)        
-        self.assertPlayerMoveDeltaXY(userPlayer, -5, 0)
+        key.vk = libtcod.KEY_LEFT;  key.c = ord(ihdr.NOT_CHAR)        
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, -5, 0)
+    
+    @unittest.skip("not yet")
+    def test_takeTurnToMoveDxDyUsingUniformThing(self):
+        testInputTable = {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):     moveTestUpKey,
+                          ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR):   moveTestDownKey,
+                          ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR):   moveTestLeftKey}
+        key = libtcod.Key()
+        ihandler = ihdr.InputHandler(key, testInputTable)
+        
+        #테스트용 inputTable이 연결된 TurnTaker를 가지는 유저객체 생성
+        ttaker = TurnTaker(5, ihandler)
+        userPlayer = GameObject(1,2, turnTakerComponent=ttaker)
+        
+        #given: UP key 입력시 이동하는 양                
+        key.vk = libtcod.KEY_UP;    key.c = ord(ihdr.NOT_CHAR)
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, +5, +10)        
+        #DOWN key 입력시 이동하는 양                
+        key.vk = libtcod.KEY_DOWN;  key.c = ord(ihdr.NOT_CHAR)
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, -7, -14)
+        #Left key 입력 5번(실제 게임의 이동과 비슷함) moveTestLeftKey
+        key.vk = libtcod.KEY_LEFT;  key.c = ord(ihdr.NOT_CHAR)        
+        self.assertPlayerPositionIncreasedDeltaXY(userPlayer, -5, 0)
+
+    
                 
-    def assertPlayerMoveDeltaXY(self, player, dx, dy):
+
+    def assertPlayerPositionIncreasedDeltaXY(self, player, dx, dy):
         '''플레이어가 움직인 좌표의 양은 dx dy임을 단언한다.'''        
         beforeX = player.x
         beforeY = player.y
