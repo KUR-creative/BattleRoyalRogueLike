@@ -91,7 +91,7 @@ class TurnTaker(object):
         self.actCount = self.maxActCount
         
         while self.actCount > 0:                
-            result = self.inputSource.inputResult()
+            result = self.inputSource.getSemanticInput()
             if result is not None:
                 actCost = result(self.owner)
                 self.actCount -= actCost
@@ -515,7 +515,7 @@ class Test_proto1(unittest.TestCase):
         while not libtcod.console_is_window_closed():
             # 사용자 입력
             libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
-            inputResultFunc = ihandler.inputResult()
+            inputResultFunc = ihandler.getSemanticInput()
 
             # 사용자 입력이 없는데 적들이 멋대로 움직이면 안 된다.
             # 근데 입력은 유저 플레이어.takeTurn 에서 대기해야 할 텐데.?

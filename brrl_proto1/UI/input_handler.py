@@ -13,7 +13,7 @@ class InputHandler:
         self.key = key
         self.inputTable = inputTable
 
-    def inputResult(self):
+    def getSemanticInput(self):
         '''
         현재 입력에 대한 결과를 반환
         :returns: 입력에 대한 결과가 self.inputTable에 있는 경우 결과 반환, 그렇지 않으면 None 반환
@@ -22,6 +22,8 @@ class InputHandler:
             return self.inputTable[KeyInput(self.key)]
         except KeyError:
             return None       
+
+
 
 #################### helpers ####################
 # 일반적인 경우다. 둘 다 아닌 경우가 있다..

@@ -67,7 +67,10 @@ class TurnTaker(object):
         assert (val >= 0 and "player's actCount is negative number. FATAL error!")
         self._actCount = val
 
-                                
+class AI(object):
+    def getSemanticInput(self):
+        return 'up'
+
 class GameObject:
     '''
     테스트용 fake객체.
@@ -122,18 +125,18 @@ class GameObject:
 
 
 class GameStateChanger(object):
-    def __init__(self, inputHandler, player):
-        self.player = player
+    def __init__(self, inputHandler, gameObj):
+        self.gameObj = gameObj
         self.inputHandler = inputHandler
 
     def setInputTable(self, inputTable):
         self.inputHandler.inputTable = inputTable
 
     def inputResult(self):
-        assert (self.player.turnTakerComponent.actCount != 0 and 
+        assert (self.gameObj.turnTakerComponent.actCount != 0 and 
                 "accepted input but player's actCount is 0!")
         
-        semanticInput = self.inputHandler.inputResult()
+        semanticInput = self.inputHandler.getSemanticInput()
         #리팩토링이 필요하다. 
         #원시입력기(inputHandler), 유저, 장애물 목록 등 
         #다양한 상태에 따라 다양한 반응이 필요하다. 즉, 매우 변화가 잦은 부분이다.
@@ -141,32 +144,32 @@ class GameStateChanger(object):
             return
 
         elif semanticInput == 'skip': 
-            self.player.skip()
+            self.gameObj.skip()
         
         elif semanticInput == 'up':
-            self.player.move(0, -1)
+            self.gameObj.move(0, -1)
         
         elif semanticInput == 'down':
             #모든 move에 장애물 뚫기 테스트를 적용해야 한다.
             #gameObj 종류에 따라 장애물을 뚫을 수도 있다.
             #isObstacleAt함수는 안 좋다. 이 클래스에 주입되지 않은 외부 환경을 참조하니까.
-            if(isObstacleAt(self.player.x + 0, self.player.y + 1) and 
-               not self.player.canPenetrate ):
+            if(isObstacleAt(self.gameObj.x + 0, self.gameObj.y + 1) and 
+               not self.gameObj.canPenetrate ):
                 print "cannot move over blocked obstacle!"  
             else:
-                self.player.move(0, +1)
+                self.gameObj.move(0, +1)
         
         elif semanticInput == 's': 
             #모든 종류의 행동에 대해 적용해야 한다. actCost = 0 인 행동도 있다.
             #입력 S의 actCost는 2이다. 
             #그런데.. GameObj의 inputS에 있는 2와 전혀 상관이 없다.        
             # 상관 있게 만들어야 한다.
-            if self.player.turnTakerComponent.actCount > 2:
-                self.player.inputS()
+            if self.gameObj.turnTakerComponent.actCount > 2:
+                self.gameObj.inputS()
 
         elif semanticInput == 'a':
             #이것도 무기 클래스를 만들어야 하겠지.
-            self.player.inputA()
+            self.gameObj.inputA()
 
 
             
@@ -186,7 +189,7 @@ class Test_game_state_changer(unittest.TestCase):
         
         return super(Test_game_state_changer, self).setUp()
 
-    def test_noInputNoStateChange(self):                    
+    def test_noInputNoStateChange(self):                            
         #given: no available input(default inputTable in setUp())        
         #when: no input 
         beforeActCount = self.userPlayer.turnTakerComponent.actCount
@@ -230,7 +233,7 @@ class Test_game_state_changer(unittest.TestCase):
         #given: 다른 게임 오브젝트 움직이기(사실 뻔함)
         ttaker = TurnTaker(5)
         otherPlayer = GameObject(1,2, turnTakerComponent=ttaker)
-        self.stateChanger.player = otherPlayer
+        self.stateChanger.gameObj = otherPlayer
 
         #이전 값
         beforeX = otherPlayer.x
@@ -298,7 +301,7 @@ class Test_game_state_changer(unittest.TestCase):
         #then: 객체는 2칸을 내려감.
         self.assertEqualPositionInMap(someObj, beforeX, beforeY + 2)
        
-    def test_noChangeWhenActCostOfSomethingIsMoreThanMaxActCountOfPlayer(self):        
+    def test_noChangeWhenActCostOfDoingIsMoreThanMaxActCountOfPlayer(self):        
         #given: setup시의 maxActCount는 5이고, s를 누르면 행동력 2가 까이는 행동을 함.
         self.stateChanger.setInputTable(
             {ihdr.KeyTuple(ihdr.NOT_VK, 's'): 's'}
@@ -322,7 +325,7 @@ class Test_game_state_changer(unittest.TestCase):
         ttaker = TurnTaker(5)
         otherPlayer = GameObject(1,2, turnTakerComponent=ttaker, moveCost=2)
         
-        self.stateChanger.player = otherPlayer
+        self.stateChanger.gameObj = otherPlayer
 
         #when: 위로 이동
         self.pseudoKeyInput(libtcod.KEY_UP,ihdr.NOT_CHAR)        
@@ -419,12 +422,33 @@ class Test_game_state_changer(unittest.TestCase):
 
     def test_raiseErrorWhenActCountOfPlayerIsNegativeNumber(self):    
         try:
-             self.stateChanger.player.turnTakerComponent.actCount = -1
-        except AssertionError, e:    
+            self.stateChanger.gameObj.turnTakerComponent.actCount = -1
+        except AssertionError:    
             pass
         else:
             self.fail("AssertionError didn't raiesd")
-                        
+            
+######## ai 구현하기 ########
+    # ai는 inputHandler의 일종이다. 원시입력 없이 semanticInput을 뽑아낸다...
+
+    def test_aiMoveLinkedGameObjOneCell(self):
+        beforeX = self.userPlayer.x
+        beforeY = self.userPlayer.y
+        beforeActCount = self.userPlayer.turnTakerComponent.actCount
+        #given: 위로 가는 AI를 stateChanger에 연결
+        self.stateChanger.inputHandler = AI()
+        #when: 위로 한 칸 움직인다!
+        self.stateChanger.inputResult()         
+        #then: 위로 한 칸 움직이고 행동력 1 줄이고.                    
+        self.assertEqualPositionInMap(self.userPlayer, beforeX, beforeY - 1)
+        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, beforeActCount - 1)
+        
+    @unittest.skip("repeat ai input and state changing")
+    def test_rename(self):
+        #given: 위로만 가는 AI 
+        
+        #when-then: 행동력이 0이 될때까지 입력-단언 반복
+        pass
                                                
     def pseudoKeyInput(self, vk, c):
         assert type(vk) is int

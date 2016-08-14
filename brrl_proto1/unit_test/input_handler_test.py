@@ -47,22 +47,22 @@ class Test_inputHandler(unittest.TestCase):
         #when: 사용자가 'F1' 입력     
         self.key.vk = libtcod.KEY_F1
         self.key.c = 0
-        self.assertEqual(self.ihandler.inputResult(), 'input F1, esc')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'input F1, esc')
             
         self.key.vk = libtcod.KEY_ESCAPE
         self.key.c = ord('\x1b')
-        self.assertEqual(self.ihandler.inputResult(), 'input F1, esc')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'input F1, esc')
 
         self.key.vk = 65
         self.key.c = 0
-        self.assertIsNone(self.ihandler.inputResult())
+        self.assertIsNone(self.ihandler.getSemanticInput())
 
     def test_InputTableSetup(self):
         key = self.key
         #inputDict에 있는 char가 입력됨        
         key.vk = 65 
         key.c = ord('c')
-        self.assertEqual(self.ihandler.inputResult(), 'in a dict')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'in a dict')
 
         #inputDict에 없는 char가 입력됨
         ret = self.inputChar('x')
@@ -71,18 +71,18 @@ class Test_inputHandler(unittest.TestCase):
         #inputDict에 있는 F1(vk)가 입력됨
         key.vk = libtcod.KEY_F1
         key.c = 0
-        self.assertEqual(self.ihandler.inputResult(), 'input F1, esc')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'input F1, esc')
                 
         #inputDict에 없는 vk가 입력됨
         key.vk = libtcod.KEY_F2
         key.c = 0
-        self.assertIsNone(self.ihandler.inputResult())
+        self.assertIsNone(self.ihandler.getSemanticInput())
 
         #lalt 같이 누르기
         key.vk = 65 #이게 65가 아닐 수 있다!
         key.c = ord('c')
         key.lalt = True
-        self.assertEqual(self.ihandler.inputResult(), 'c + lalt')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'c + lalt')
 
         #lalt만 누르기
         key.vk = 7
@@ -90,10 +90,10 @@ class Test_inputHandler(unittest.TestCase):
         key.lalt = True; key.lctrl = False
         key.ralt = False; key.rctrl = False
         key.shift  = False
-        self.assertEqual(self.ihandler.inputResult(), 'only lalt')
+        self.assertEqual(self.ihandler.getSemanticInput(), 'only lalt')
 
     def test_sameInputButDifferentOutput(self):
-        self.fail("test for InputResult class")
+        self.fail("test for InputResult class.. for what? maybe need to delete this test")
 
     
     def test_inputModuleInGameLoop(self):
@@ -111,7 +111,7 @@ class Test_inputHandler(unittest.TestCase):
         while not libtcod.console_is_window_closed():                      
             libtcod.console_flush()  
             libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
-            str = self.ihandler.inputResult()            
+            str = self.ihandler.getSemanticInput()            
             if key.vk != libtcod.KEY_NONE:
                 print str
             if key.vk == libtcod.KEY_ESCAPE:
@@ -124,7 +124,7 @@ class Test_inputHandler(unittest.TestCase):
 
     def inputChar(self, char):
         self.key.c = ord(char)
-        return self.ihandler.inputResult()
+        return self.ihandler.getSemanticInput()
 
 
 if __name__ == '__main__':
