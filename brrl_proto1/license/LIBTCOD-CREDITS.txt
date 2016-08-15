@@ -18,7 +18,7 @@ Many thanks to everyone who provided feedback, and especially :
 - Chris 'donblas' Hamons for libtcod-net, the cmake system, the swig wrappers...
 - dividee for polishing and optimizing the python wrapper. 
 - John Klimek for the early C# port and valuable bug fixes.
-- Kyle 'Hex Decimal' Stewart & Emmanuel 'Altefcat' Dempuré for their contribution 
+- Kyle 'Hex Decimal' Stewart & Emmanuel 'Altefcat' Dempur?for their contribution 
   to the python port.
 - Antagonist for the awesome SkyFire GLSL roguelike engine, hence libtcod's GLSL 
   renderer
