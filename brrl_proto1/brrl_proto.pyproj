@@ -6,7 +6,7 @@
     <ProjectGuid>eb8b265f-9198-482f-abd8-67d081aedbe7</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>unit_test\proto1_test.py</StartupFile>
+    <StartupFile>unit_test\game_state_changer_test.py</StartupFile>
     <SearchPath>.</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
@@ -36,6 +36,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="unit_test\game_object_repository_test.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="unit_test\game_state_changer_test.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="unit_test\input_handler_test.py">
