@@ -62,7 +62,7 @@ class TurnTaker(object):
         self.maxActCount = maxActCount        
         self._actCount = maxActCount
 
-        self.inputSource = inputSource
+        #self.inputSource = inputSource
     
     @property
     def actCount(self):
@@ -93,6 +93,58 @@ class Fighter:
         if self.isTemporary:
             self.hp -= 1
 
+class test_state_changer_compo:
+    '''
+    덕타이핑을 써서, 아래 함수만 있으면 어떤 클래스든 이게 될 수 있다.
+    또 이거는 gameObject에 들어가는 컴포넌트이므로 얼마든지 gobj(owner)에 접근 가능.
+    '''
+    def changeState(self, semanticInput):
+        #DBG: print semanticInput,
+        # TODO: need refactoring 
+        #원시입력기(inputHandler), 유저, 장애물 목록 등 
+        #다양한 상태에 따라 다양한 반응이 필요하다. 즉, 매우 변화가 잦은 부분이다.
+        if semanticInput is None: #입력이 없다            
+            return None
+
+        elif semanticInput == 'skip': 
+            self.owner.skip()
+        
+        elif semanticInput == 'up':
+            self.owner.move(0, -1)#렌더링 코드는 여기에 쓰는가?  Nope!
+        
+        elif semanticInput == 'down':
+            #모든 move에 장애물 뚫기 테스트를 적용해야 한다.
+            #gameObj 종류에 따라 장애물을 뚫을 수도 있다.
+            #isObstacleAt함수는 안 좋다. 이 클래스ㅜ에 주입되지 않은 외부 환경을 참조하니까.
+            if(isObstacleAt(self.owner.x + 0, self.owner.y + 1) and 
+               not self.owner.canPenetrate ):
+                print "cannot move over blocked obstacle!"  
+            else:
+                self.owner.move(0, +1)
+        
+        elif semanticInput == 's': 
+            #모든 종류의 행동에 대해 적용해야 한다. actCost = 0 인 행동도 있다.
+            #입력 S의 actCost는 2이다. 
+            #그런데.. GameObj의 inputS에 있는 2와 전혀 상관이 없다.        
+            # 상관 있게 만들어야 한다.
+            if self.owner.turnTakerComponent.actCount > 2:
+                self.owner.inputS()
+
+        elif semanticInput == 'a':
+            #이것도 무기 클래스를 만들어야 하겠지.
+            self.owner.inputA()
+
+        elif semanticInput == 'esc':
+            return 'exit' #
+        
+        if(self.owner.fighterComponent is not None and
+           self.owner.fighterComponent.hp == 0 and
+           self.owner.fighterComponent.isTemporary):
+            return 'user is dead'
+
+        print semanticInput, #DBG
+
+
 class GameObject:
     '''
     테스트용 fake객체.
@@ -106,6 +158,7 @@ class GameObject:
                  obstacleComponent=None, 
                  fighterComponent=None,
                  turnTakerComponent=None,
+                 stateChangerComponent=None,
                  canPenetrate=False,
                  moveCost=1):
         self.x = xInMap
@@ -131,14 +184,22 @@ class GameObject:
         if turnTakerComponent is not None:
             self.turnTakerComponent.owner = self
 
+        self.stateChangerComponent = stateChangerComponent
+        if stateChangerComponent is not None:
+            self.stateChangerComponent.owner = self            
+
     # 게임 오브젝트는 할 수 있는 일들이 종류마다 다들 다르다.
     # 메서드로 하기에는 좀... 메서드는 너무 정적이다. 이걸 어떻게 리팩토링하는가?
     # TODO: need refactoring
     def move(self, dx, dy):        
         self.x += dx
-        self.y += dy
+        self.y += dy        
         self.turnTakerComponent.actCount -= self.moveCost # 이 값은 어떻게 리팩토링하지?
 
+        if self.renderComponent is not None:
+            self.renderComponent.x += dx
+            self.renderComponent.y += dy
+                    
     def skip(self):
         self.turnTakerComponent.actCount = 0
 
@@ -217,7 +278,13 @@ class GameStateChanger(object):
     입력 받은 게임의 상태에 따라 InputHandler에서 들어온 semanticInput을 해석하고
     게임의 이전 상태에 따라 상태를 변경한다.
 
-    기본적으로 gameObj에게 책임을 미룬다...
+    기본적으로 gameObj에게 책임을 미룬다... 
+    gameObj가 자신만 변화시키는 경우에는 상태변화는 gameObj 안에서 캡슐화된다.
+
+    그러나 gameObj가 외부 [게임 상태]를 변화시킨다면 여기서 처리해야 한다.
+    아무래도 시야 기준에 대한 렌더링 처리를 이 클래스에서 하면 되겠다.
+    이 클래스에서 외부 [게임 상태]들에 접근 할 수 있게 하자....
+
     '''
     #DBG: debug = 0
     def __init__(self, inputHandler, gameObj):
@@ -232,51 +299,7 @@ class GameStateChanger(object):
                 "accepted input but player's actCount is 0!")
         
         semanticInput = self.inputHandler.getSemanticInput()
-        #DBG: print semanticInput,
-        # TODO: need refactoring 
-        #원시입력기(inputHandler), 유저, 장애물 목록 등 
-        #다양한 상태에 따라 다양한 반응이 필요하다. 즉, 매우 변화가 잦은 부분이다.
-        if semanticInput is None: #입력이 없다            
-            return
-
-        elif semanticInput == 'skip': 
-            self.gameObj.skip()
-        
-        elif semanticInput == 'up':
-            self.gameObj.move(0, -1)
-        
-        elif semanticInput == 'down':
-            #모든 move에 장애물 뚫기 테스트를 적용해야 한다.
-            #gameObj 종류에 따라 장애물을 뚫을 수도 있다.
-            #isObstacleAt함수는 안 좋다. 이 클래스에 주입되지 않은 외부 환경을 참조하니까.
-            if(isObstacleAt(self.gameObj.x + 0, self.gameObj.y + 1) and 
-               not self.gameObj.canPenetrate ):
-                print "cannot move over blocked obstacle!"  
-            else:
-                self.gameObj.move(0, +1)
-        
-        elif semanticInput == 's': 
-            #모든 종류의 행동에 대해 적용해야 한다. actCost = 0 인 행동도 있다.
-            #입력 S의 actCost는 2이다. 
-            #그런데.. GameObj의 inputS에 있는 2와 전혀 상관이 없다.        
-            # 상관 있게 만들어야 한다.
-            if self.gameObj.turnTakerComponent.actCount > 2:
-                self.gameObj.inputS()
-
-        elif semanticInput == 'a':
-            #이것도 무기 클래스를 만들어야 하겠지.
-            self.gameObj.inputA()
-
-        elif semanticInput == 'esc':
-            return 'exit' #
-        
-        if(self.gameObj.fighterComponent is not None and
-           self.gameObj.fighterComponent.hp == 0 and
-           self.gameObj.fighterComponent.isTemporary):
-            return 'user is dead'
-
-        print semanticInput, #DBG
-
+        return self.gameObj.stateChangerComponent.changeState(semanticInput)
         
 
 class TurnSystem(object):
@@ -303,6 +326,7 @@ class TurnSystem(object):
                     nowGameObjIsUserPlayer = self.stateChanger.inputHandler.key
                     if nowGameObjIsUserPlayer:
                         #유저의 입력을 기다림.
+                        libtcod.console_flush()
                         libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,self.stateChanger.inputHandler.key,mouse)
                                                             
                     messageOutOfTurnSystem = self.stateChanger.updateStates() 
@@ -319,7 +343,8 @@ class Test_game_state_changer(unittest.TestCase):
         
         self.initMaxActCount = 5
         ttaker = TurnTaker(self.initMaxActCount)
-        self.userPlayer = GameObject(1,2, turnTakerComponent=ttaker)
+        self.userPlayer = GameObject(1,2, turnTakerComponent=ttaker,
+                                     stateChangerComponent=test_state_changer_compo())
         
         #원시입력핸들러와 게임상태변경자 연결
         testInputTable = dict()        
@@ -375,7 +400,8 @@ class Test_game_state_changer(unittest.TestCase):
 
         #given: 다른 게임 오브젝트 움직이기(사실 뻔함)
         ttaker = TurnTaker(5)
-        otherPlayer = GameObject(1,2, turnTakerComponent=ttaker)
+        otherPlayer = GameObject(1,2, turnTakerComponent=ttaker,
+                                 stateChangerComponent=test_state_changer_compo())
         self.stateChanger.gameObj = otherPlayer
 
         #이전 값
@@ -463,7 +489,9 @@ class Test_game_state_changer(unittest.TestCase):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: 움직임의 actCost가 2인 플레이어
         ttaker = TurnTaker(5)
-        otherPlayer = GameObject(1,2, turnTakerComponent=ttaker, moveCost=2)
+        otherPlayer = GameObject(1,2, turnTakerComponent=ttaker, 
+                                 moveCost=2,
+                                 stateChangerComponent=test_state_changer_compo())
         
         self.stateChanger.gameObj = otherPlayer
 
@@ -692,7 +720,9 @@ class Test_game_state_changer(unittest.TestCase):
         playerList = []                
         for i in range(3):
             ttaker = TurnTaker(self.initMaxActCount)
-            player = GameObject(i*10, i*10, turnTakerComponent=ttaker)
+            player = GameObject(i*10, i*10, 
+                                turnTakerComponent=ttaker,
+                                stateChangerComponent=test_state_changer_compo())
             player.fakeState = 'ai test'
             playerList.append(player)
         # 3개의 ai가 있는 리스트
@@ -737,7 +767,9 @@ class Test_game_state_changer(unittest.TestCase):
         playerList = []                        
         for i in range(3):
             ttaker = TurnTaker(self.initMaxActCount)
-            player = GameObject(i*10, i*10, turnTakerComponent=ttaker)
+            player = GameObject(i*10, i*10, 
+                                turnTakerComponent=ttaker,
+                                stateChangerComponent=test_state_changer_compo())
             player.fakeState = 'ai test'
             playerList.append(player)       #ai
         playerList.append(self.userPlayer)  #user
@@ -755,12 +787,11 @@ class Test_game_state_changer(unittest.TestCase):
         
         loop = 1
         self.initLibtcodWindow()
+        turnSystem = TurnSystem(aiList, playerList)
         while not libtcod.console_is_window_closed():                      
-            libtcod.console_flush()  
             mouse = libtcod.Mouse()
             
-            #when: 턴 시스템 작동
-            turnSystem = TurnSystem(aiList, playerList)
+            #when: 턴 시스템 작동            
             exit = turnSystem.run() #루프 한번         
                     
             #유저의 esc 입력으로 테스트 종료 가능.
@@ -781,6 +812,7 @@ class Test_game_state_changer(unittest.TestCase):
 
             loop += 1
 
+    @unittest.skip("거 좀만 하지 말자. proto1 다 만들 때까지만 참으쇼 쫌")
     def test_manual_stopRunningTurnSystemWhenUserIsDead(self):
         print "\n manual test:"
         print " user will be dead in 3 turns"
@@ -795,7 +827,8 @@ class Test_game_state_changer(unittest.TestCase):
         for i in range(3):
             ttaker = TurnTaker(self.initMaxActCount)
             player = GameObject(i*10, i*10, turnTakerComponent=ttaker, 
-                                            fighterComponent=Fighter(initHp))
+                                            fighterComponent=Fighter(initHp),
+                                            stateChangerComponent=test_state_changer_compo())
             player.fakeState = 'ai test'
             playerList.append(player)       #ai
         playerList.append(self.userPlayer)  #user
@@ -808,12 +841,11 @@ class Test_game_state_changer(unittest.TestCase):
         
         loop = 1
         self.initLibtcodWindow()
+        turnSystem = TurnSystem(aiList, playerList)
         while not libtcod.console_is_window_closed():                      
-            libtcod.console_flush()  
             mouse = libtcod.Mouse()
             
-            #when: 턴 시스템 작동
-            turnSystem = TurnSystem(aiList, playerList)
+            #when: 턴 시스템 작동            
             flag = turnSystem.run() #루프 한번         
                 
             #then: ai들: up only, down only, skip only, 그리고 유저. 
@@ -823,6 +855,7 @@ class Test_game_state_changer(unittest.TestCase):
             
             #유저가 죽으면 게임 종료.
             if self.userPlayer.fighterComponent.hp == 0:
+                #원래 게임 루프는 이걸 알면 안됨..
                 self.assertEqual(flag, 'user is dead')
                 print '\n >>> user is dead!!'
                 break
