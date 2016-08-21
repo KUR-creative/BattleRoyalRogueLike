@@ -20,13 +20,16 @@ from brrl_proto1 import GameObjectRepository as grepo
 
 import game_state_changer_test1 as gsch
 
-
+'''
 #유틸리티
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     reverse = dict((value, key) for key, value in enums.iteritems())
     enums['reverse_mapping'] = reverse
     return type('Enum', (), enums)
+
+userSemantics = enum('UP', 'DOWN', 'LEFT', 'RIGHT', 'SKIP', 'EXIT')  
+'''
 
 
 
@@ -43,32 +46,43 @@ def createTree(num):
                             num*2,num*2, foreColor=libtcod.darkest_red)
     obsCompo = gsch.Obstacle(True)
     return gsch.GameObject(num*2, num*2, tree, obsCompo)
-'''
-def createDummyEnemy():
-    initX = gset.WINDOW_WIDTH/2 - 5
-    initY = gset.WINDOW_HEIGHT/2 - 5
-    dummyActor = gui.RenderObject(npcScreen,'dummy',u'덤', 
-                                initX,initY,
-                                foreColor=libtcod.blue)
-    obsCompo = Obstacle(True)
-    fighter = gsch.Fighter(30, 10, 10, 50, 1)
-    return gsch.GameObject(initX, initY, dummyActor, obsCompo, fighter)
-'''
+
+def createEnemy(x,y):
+    #이렇게 체크를 꼭 해서 겹치는 obstacle이 있으면 안 된다..
+    if isObstacleAt(x,y):
+        x += 1
+    rCompo = gui.RenderObject(npcScreen,'enemy',u'적', 
+                                  x,y,
+                                  foreColor=libtcod.blue)
+    obsCompo = gsch.Obstacle(True)
+    fCompo = gsch.Fighter(30)
+    tCompo = gsch.TurnTaker(2)
+    return gsch.GameObject(x, y, 
+                           renderComponent=rCompo, 
+                           obstacleComponent=obsCompo,
+                           fighterComponent=fCompo,
+                           turnTakerComponent=tCompo,
+                           stateChangerComponent=proto1StateChangerCompo())
+
 def createUserPlayer():       
-    initX = gset.WINDOW_WIDTH/2
+    initX = 4
     initY = gset.WINDOW_HEIGHT/2
     rCompo = gui.RenderObject(userScreen,'user',u'나', 
                               initX,initY,
                               foreColor=libtcod.black)
+    obsCompo = gsch.Obstacle(True)
     fCompo = gsch.Fighter(100)
     tCompo = gsch.TurnTaker(1)
     return gsch.GameObject(initX, initY, 
                            renderComponent=rCompo, 
                            fighterComponent=fCompo,
                            turnTakerComponent=tCompo,
-                           stateChangerComponent=proto1_state_changer_compo())
+                           stateChangerComponent=proto1StateChangerCompo())
 
-class proto1_state_changer_compo:
+
+######## 100% 게임로직 됨 game logic(game specific) ########
+
+class proto1StateChangerCompo:
     '''
     이번 프로토타입의 유저만을 위한 상태 변경클래스이다.
     맨날 겹치는 부분은 상속을 해도 되겠다.
@@ -84,9 +98,18 @@ class proto1_state_changer_compo:
         이 클래스 자체의 의미가 상태변화의 책임을 지는 것이니까... 이게 맞아.
     2.함수를 줘서 호출하는 건 gameObject에 상태변화의 모든 책임을 넘기는 것이다.
         ㄴ 이 방법은 아무래도 제약이 많을 거 같다... 역시...
+
+    그런데, stateChangerComponent가 모든 플레이어에게 동일해도 괜찮다면, 
+    그냥 stateChanger에서 상태를 변경할 수도 있다.
+
+    근데 아직 잘 모르겠다. 잘 모르는 것에 대해서는 덜 유연한 디자인 결정을 내려선 안 된다.
     '''
-    
+
+    '''
+    #enum 살려내라 으아아!
     def changeState(self, semanticInput):
+        print semanticInput, ' ', #DBG
+
         if semanticInput is None:
             return None        
         
@@ -101,6 +124,28 @@ class proto1_state_changer_compo:
 
         if semanticInput == userSemantics.EXIT:
             return semanticInput 
+    '''
+    def changeState(self, semanticInput):
+        print semanticInput, ' ', #DBG
+
+        if semanticInput is None:
+            return None        
+        
+        if semanticInput == 'up':
+            self.moveOwner(0, -1)
+        elif semanticInput == 'down':
+            self.moveOwner(0, +1)
+        elif semanticInput == 'left':
+            self.moveOwner(-1, 0)
+        elif semanticInput == 'right':
+            self.moveOwner(+1, 0)
+
+        if semanticInput == 'skip':
+            self.owner.skip()
+
+        if semanticInput == 'exit':
+            return semanticInput 
+    
 
     def moveOwner(self, dx, dy):
         if isObstacleAt(self.owner.x + dx, self.owner.y + dy):
@@ -108,15 +153,31 @@ class proto1_state_changer_compo:
         else:
             self.owner.move(dx, dy)
             
-userSemantics = enum('UP', 'DOWN', 'LEFT', 'RIGHT', 'EXIT')  
 
+'''
 inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      userSemantics.EXIT,
               ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   userSemantics.UP,
               ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): userSemantics.DOWN,
               ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR): userSemantics.LEFT,
               ihdr.KeyTuple(libtcod.KEY_RIGHT, ihdr.NOT_CHAR):userSemantics.RIGHT} 
+'''
+inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      'exit',
+              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   'up',
+              ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): 'down',
+              ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR): 'left',
+              ihdr.KeyTuple(libtcod.KEY_RIGHT, ihdr.NOT_CHAR):'right'} 
 
-               
+class proto1OnlyUpAi(object):
+    def calcNextAct(self, nowGameState):
+        return 'up'
+class proto1OnlyDownAi(object):
+    def calcNextAct(self, nowGameState):
+        return 'down'
+class proto1OnlySkipAi(object):
+    def calcNextAct(self, nowGameState):
+        return 'skip'
+
+################################
 
 def isObstacleAt(xInMap, yInMap):
     '''
@@ -139,8 +200,6 @@ tileRefs = [[None
                 for x in range(gset.WINDOW_WIDTH)]
 #막아서는 놈들 저장소: 반드시 여기에 저장되는게 보장되어야 한다.(버그가 없으려면)
 obstacleObjRefs = []
-#더미 적
-dummyRef = None
 #진짜 적
 enemyRefs = []
 #유저
@@ -181,24 +240,31 @@ class Test_prototype1(unittest.TestCase):
         #3.~ 더미 적 생성
         dummyRef = gameObjFactory.createGameObject(createDummyEnemy)
         obstacleObjRefs.append(dummyRef)
+        '''
         #3.~ 진짜 적 생성
         for i in range(4):
-            enemyRef = gameObjFactory.createGameObject(createEnemy)
+            enemyRef = gameObjFactory.createGameObject(lambda:createEnemy(i*10, i*5))
             obstacleObjRefs.append(enemyRef)
             enemyRefs.append(enemyRef)
-        '''
+        
         #3.~ 유저 생성
         global userRef 
         userRef = gameObjFactory.createGameObject(createUserPlayer)
-        
+        obstacleObjRefs.append(userRef)
+
         user = userRef()
         
         #입력 준비        
         self.key = libtcod.Key()
-                
-        playerList = [user]                      
-        userList = [ihdr.InputHandler(self.key, inputTable)]
         
+        #유저와 인공지능과 플레이어(gobj)들
+        playerList = [user, enemyRefs[0](), enemyRefs[1](), enemyRefs[2](), enemyRefs[3](),]                      
+        userList = [ihdr.InputHandler(self.key, inputTable),
+                    gsch.AiInputHandler(playerList[0], proto1OnlyDownAi()),
+                    gsch.AiInputHandler(playerList[1], proto1OnlyUpAi()),
+                    gsch.AiInputHandler(playerList[2], proto1OnlySkipAi()),
+                    gsch.AiInputHandler(playerList[3], proto1OnlyDownAi())]        
+                        
         turnSystem = gsch.TurnSystem(userList, playerList)
 
         #게임 루프
@@ -206,7 +272,7 @@ class Test_prototype1(unittest.TestCase):
             #턴 시스템 작동.
             exit = turnSystem.run()
 
-            if exit == userSemantics.EXIT:
+            if exit == 'exit':
                 break
 
             # 렌더링
