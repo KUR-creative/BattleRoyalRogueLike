@@ -29,7 +29,13 @@
     <Compile Include="game_settings.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="TurnSystem.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="UI\input_handler.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="unit_test\game_logic_for_game_state_changer.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="unit_test\game_object_factory_test.py">
@@ -96,6 +102,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="unused\xmlTest.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="utilities.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="__init__.py" />

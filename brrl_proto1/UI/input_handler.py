@@ -23,11 +23,26 @@ class InputHandler:
         except KeyError:
             return None       
 
+class AiInputHandler(object):
+    '''
+    AI를 위한 입력 인터페이스를 제공한다.
+    덕타이핑을 만족시키기 위한 최소한의 메서드 제공.
+    '''
+    def __init__(self, gameObj, agent):
+        self.gameObj = gameObj
+        self.agent = agent
+        
+        self.key = None #인풋핸들러 덕타이핑을 위한 가짜 인터페이스
+        # None인 경우 인공지능.
+
+    def getSemanticInput(self):        
+        nowSituation = self.gameObj.getAvailableStates()
+        return self.agent.calcNextAct(nowSituation)
 
 
 #################### helpers ####################
 # 일반적인 경우다. 둘 다 아닌 경우가 있다..
-# esc의 경우 vk = 1, c = '\x1b' == chr(27) 이다...
+# 예외: esc의 경우 vk = 1, c = '\x1b' == chr(27) 이다...
 NOT_VK = 65
 NOT_CHAR = '\0'
 

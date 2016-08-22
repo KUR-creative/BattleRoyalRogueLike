@@ -92,10 +92,6 @@ class Test_inputHandler(unittest.TestCase):
         key.shift  = False
         self.assertEqual(self.ihandler.getSemanticInput(), 'only lalt')
 
-    def test_sameInputButDifferentOutput(self):
-        self.fail("test for InputResult class.. for what? maybe need to delete this test")
-
-    
     def test_inputModuleInGameLoop(self):
         libtcod.console_set_custom_font( 'font.png', libtcod.FONT_LAYOUT_ASCII_INROW, 32, 2048)
         libtcod.console_init_root(30, 30, 'python + libtcod tutorial', False)
