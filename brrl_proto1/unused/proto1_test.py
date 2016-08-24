@@ -50,7 +50,7 @@ class Fighter(object):
         if targetRef is None:
             print "attack but no target!"
         else:
-            target = targetRef()              
+            target = targetRef() #매개변수는 어차피 함수 끝나면 죽는 거라 이런짓 안해도 괜찮아..
             damage = self.power - target.fighterComponent.defense
             coin = libtcod.random_get_int(0,1,100)
             if target.fighterComponent.hp > 0:
@@ -80,7 +80,7 @@ class Fighter(object):
         self._hp = val
         if self._hp < 0:
             self.die()
-
+    
 class TurnTaker(object):
     def __init__(self, maxActCount, inputSource):
         self.maxActCount = maxActCount

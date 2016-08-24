@@ -17,21 +17,13 @@ from brrl_proto1 import game_settings as gset
 from brrl_proto1 import Map
 from brrl_proto1 import GameObjectFactory as gfac
 from brrl_proto1 import GameObjectRepository as grepo
+from brrl_proto1 import TurnSystem as tsys
+from brrl_proto1 import utilities as util
 
+#이 임포트 구문이 사라지면 모듈화가 완료된 것이다.
 import game_state_changer_test1 as gsch
 
-'''
-#유틸리티
-def enum(*sequential, **named):
-    enums = dict(zip(sequential, range(len(sequential))), **named)
-    reverse = dict((value, key) for key, value in enums.iteritems())
-    enums['reverse_mapping'] = reverse
-    return type('Enum', (), enums)
-
-userSemantics = enum('UP', 'DOWN', 'LEFT', 'RIGHT', 'SKIP', 'EXIT')  
-'''
-
-
+semanticInputs = util.enum('UP', 'DOWN', 'LEFT', 'RIGHT', 'SKIP', 'EXIT')  
 
 #### make functions ####
 def createTile(x,y):     
@@ -49,14 +41,14 @@ def createTree(num):
 
 def createEnemy(x,y):
     #이렇게 체크를 꼭 해서 겹치는 obstacle이 있으면 안 된다..
-    if isObstacleAt(x,y):
+    if getObstacleAt(x,y, obstacleObjRefs):
         x += 1
     rCompo = gui.RenderObject(npcScreen,'enemy',u'적', 
                                   x,y,
                                   foreColor=libtcod.blue)
     obsCompo = gsch.Obstacle(True)
-    fCompo = gsch.Fighter(30)
-    tCompo = gsch.TurnTaker(2)
+    fCompo = gsch.Fighter(30,10)
+    tCompo = gsch.TurnTaker(1)
     return gsch.GameObject(x, y, 
                            renderComponent=rCompo, 
                            obstacleComponent=obsCompo,
@@ -71,10 +63,11 @@ def createUserPlayer():
                               initX,initY,
                               foreColor=libtcod.black)
     obsCompo = gsch.Obstacle(True)
-    fCompo = gsch.Fighter(100)
+    fCompo = gsch.Fighter(30,5)
     tCompo = gsch.TurnTaker(1)
-    return gsch.GameObject(initX, initY, 
+    return gsch.GameObject(initX, initY,                            
                            renderComponent=rCompo, 
+                           obstacleComponent=obsCompo,
                            fighterComponent=fCompo,
                            turnTakerComponent=tCompo,
                            stateChangerComponent=proto1StateChangerCompo())
@@ -82,7 +75,7 @@ def createUserPlayer():
 
 ######## 100% 게임로직 됨 game logic(game specific) ########
 
-class proto1StateChangerCompo:
+class proto1StateChangerCompo(object):
     '''
     이번 프로토타입의 유저만을 위한 상태 변경클래스이다.
     맨날 겹치는 부분은 상속을 해도 되겠다.
@@ -104,96 +97,104 @@ class proto1StateChangerCompo:
 
     근데 아직 잘 모르겠다. 잘 모르는 것에 대해서는 덜 유연한 디자인 결정을 내려선 안 된다.
     '''
-
-    '''
-    #enum 살려내라 으아아!
+    
     def changeState(self, semanticInput):
-        print semanticInput, ' ', #DBG
+        #print semanticInput, ' ', #DBG
 
         if semanticInput is None:
             return None        
         
-        if semanticInput == userSemantics.UP:
-            self.moveOwner(0, -1)
-        elif semanticInput == userSemantics.DOWN:
-            self.moveOwner(0, +1)
-        elif semanticInput == userSemantics.LEFT:
-            self.moveOwner(-1, 0)
-        elif semanticInput == userSemantics.RIGHT:
-            self.moveOwner(+1, 0)
+        if semanticInput == semanticInputs.UP:
+            self.moveOrMeleeAttack(0, -1)
+        elif semanticInput == semanticInputs.DOWN:
+            self.moveOrMeleeAttack(0, +1)
+        elif semanticInput == semanticInputs.LEFT:
+            self.moveOrMeleeAttack(-1, 0)
+        elif semanticInput == semanticInputs.RIGHT:
+            self.moveOrMeleeAttack(+1, 0)
 
-        if semanticInput == userSemantics.EXIT:
-            return semanticInput 
-    '''
-    def changeState(self, semanticInput):
-        print semanticInput, ' ', #DBG
-
-        if semanticInput is None:
-            return None        
-        
-        if semanticInput == 'up':
-            self.moveOwner(0, -1)
-        elif semanticInput == 'down':
-            self.moveOwner(0, +1)
-        elif semanticInput == 'left':
-            self.moveOwner(-1, 0)
-        elif semanticInput == 'right':
-            self.moveOwner(+1, 0)
-
-        if semanticInput == 'skip':
+        if semanticInput == semanticInputs.SKIP:
             self.owner.skip()
 
-        if semanticInput == 'exit':
+        if semanticInput == semanticInputs.EXIT:
             return semanticInput 
     
-
     def moveOwner(self, dx, dy):
-        if isObstacleAt(self.owner.x + dx, self.owner.y + dy):
-            print "cannot move over blocked obstacle!"  
+        #TODO: maybe refactor.. 저거 장애물참조리스트 이 객체 만들 때 집어넣어 주는게 낫겠지 아무래도?        
+        adjacentObstacle = getObstacleAt(self.owner.x + dx, self.owner.y + dy, obstacleObjRefs)
+        if adjacentObstacle is None:
+            self.owner.move(dx, dy)            
         else:
-            self.owner.move(dx, dy)
-            
+            print "cannot move over blocked obstacle!"  
+            return adjacentObstacle
 
-'''
-inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      userSemantics.EXIT,
-              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   userSemantics.UP,
-              ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): userSemantics.DOWN,
-              ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR): userSemantics.LEFT,
-              ihdr.KeyTuple(libtcod.KEY_RIGHT, ihdr.NOT_CHAR):userSemantics.RIGHT} 
-'''
-inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      'exit',
-              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   'up',
-              ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): 'down',
-              ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR): 'left',
-              ihdr.KeyTuple(libtcod.KEY_RIGHT, ihdr.NOT_CHAR):'right'} 
+    def moveOrMeleeAttack(self, dx, dy):
+        #장애물이 없으면 움직인다.
+        adjacentObstacle = self.moveOwner(dx, dy)
+        if(adjacentObstacle is not None and #장애물이 있는데
+           adjacentObstacle.fighterCompo is not None):
+            #공격 가능하면 공격한다.
+            self.owner.fighterCompo.attack(adjacentObstacle.fighterCompo)
+            '''
+        if direction == semanticInputs.DOWN:
+            adjacentObstacle = getObstacleAt(self.owner.x + 0, self.owner.y + 1, obstacleObjRefs)
+            if adjacentObstacle is None:
+                self.owner.move(0, 1)                            
+            else:
+                print "cannot move over blocked obstacle!"  
+                if adjacentObstacle.fighterComponent is not None:
+                    self.owner.fighterComponent.attack(adjacentObstacle.fighterComponent)
+        elif direction == semanticInputs.UP:
+            self.moveOwner(0,-1)
+        '''
+        #    adjacentObstacle = self.moveOwner(0,1)
+            #if adjacentObstacle is not None:
+                #self.owner.fighterComponent.attack(
+                
+
+
+inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      semanticInputs.EXIT,
+              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   semanticInputs.UP,
+              ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): semanticInputs.DOWN,
+              ihdr.KeyTuple(libtcod.KEY_LEFT, ihdr.NOT_CHAR): semanticInputs.LEFT,
+              ihdr.KeyTuple(libtcod.KEY_RIGHT, ihdr.NOT_CHAR):semanticInputs.RIGHT} 
+
 
 class proto1OnlyUpAi(object):
     def calcNextAct(self, nowGameState):
-        return 'up'
+        return semanticInputs.UP
 class proto1OnlyDownAi(object):
     def calcNextAct(self, nowGameState):
-        return 'down'
+        return semanticInputs.DOWN
 class proto1OnlySkipAi(object):
     def calcNextAct(self, nowGameState):
-        return 'skip'
+        return semanticInputs.SKIP
 
 ################################
 
-def isObstacleAt(xInMap, yInMap):
+#여기도 나중에 모듈로 옮겨라.
+def getObstacleAt(xInMap, yInMap, obstacleObjRefs):
     '''
-    입력된 좌표에서 장애물이 있는가?
+    입력된 좌표에 장애물이 있다면 반환한다.
 
     :param int xInMap: 알고 싶은 맵의 x좌표
     :param int yInMap: 알고 싶은 맵의 y좌표
-    :returns: Obstacle이 있으면 True / 없으면 False
+    :param weakref obstacleObjRefs: 장애물 약한참조가 있는 리스트
+
+    :returns: Obstacle이 있으면 그 obstacle 반환 / 없으면 None
     '''
     for obstacleRef in obstacleObjRefs:
-        if(obstacleRef().x == xInMap and 
-           obstacleRef().y == yInMap):
-            return True
-    return False
+        obstacle = obstacleRef()
+        if(obstacle.obstacleCompo.blocked and
+           obstacle.x == xInMap and
+           obstacle.y == yInMap):
+            return obstacleRef()
+    return None
 
 #### 약한 참조 저장소 ####
+# 적절한 용도에 따라 임시로 저장하고 쓰는 저장소이다.
+# 약한참조만을 가질 뿐 GameObject에 대한 소유권을 갖지 않는다.
+#
 #지형 저장소
 tileRefs = [[None
                 for y in range(gset.WINDOW_HEIGHT)]
@@ -235,7 +236,7 @@ class Test_prototype1(unittest.TestCase):
                 tileRefs[x][y] = gameObjFactory.createGameObject(lambda:createTile(x,y))
         #3.~ 맵 구성요소 생성 
         for i in range(13): 
-            obstacleObjRefs.append( gameObjFactory.createGameObject(lambda:createTree(i)) )
+            gameObjFactory.createGameObject(lambda:createTree(i), obstacleObjRefs)
         '''
         #3.~ 더미 적 생성
         dummyRef = gameObjFactory.createGameObject(createDummyEnemy)
@@ -243,15 +244,12 @@ class Test_prototype1(unittest.TestCase):
         '''
         #3.~ 진짜 적 생성
         for i in range(4):
-            enemyRef = gameObjFactory.createGameObject(lambda:createEnemy(i*10, i*5))
-            obstacleObjRefs.append(enemyRef)
-            enemyRefs.append(enemyRef)
-        
+            enemyRef = gameObjFactory.createGameObject(lambda:createEnemy(i*10, i*5),
+                                                       obstacleObjRefs, enemyRefs)
+            
         #3.~ 유저 생성
         global userRef 
-        userRef = gameObjFactory.createGameObject(createUserPlayer)
-        obstacleObjRefs.append(userRef)
-
+        userRef = gameObjFactory.createGameObject(createUserPlayer, obstacleObjRefs)
         user = userRef()
         
         #입력 준비        
@@ -260,29 +258,194 @@ class Test_prototype1(unittest.TestCase):
         #유저와 인공지능과 플레이어(gobj)들
         playerList = [user, enemyRefs[0](), enemyRefs[1](), enemyRefs[2](), enemyRefs[3](),]                      
         userList = [ihdr.InputHandler(self.key, inputTable),
-                    gsch.AiInputHandler(playerList[0], proto1OnlyDownAi()),
-                    gsch.AiInputHandler(playerList[1], proto1OnlyUpAi()),
-                    gsch.AiInputHandler(playerList[2], proto1OnlySkipAi()),
-                    gsch.AiInputHandler(playerList[3], proto1OnlyDownAi())]        
+                    ihdr.AiInputHandler(playerList[0], proto1OnlyDownAi()),
+                    ihdr.AiInputHandler(playerList[1], proto1OnlyUpAi()),
+                    ihdr.AiInputHandler(playerList[2], proto1OnlySkipAi()),
+                    ihdr.AiInputHandler(playerList[3], proto1OnlyDownAi())]        
                         
-        turnSystem = gsch.TurnSystem(userList, playerList)
+        turnSystem = tsys.TurnSystem(userList, playerList, 
+                                     self.map,
+                                     userScreen)
 
         #게임 루프
         while not libtcod.console_is_window_closed():
             #턴 시스템 작동.
             exit = turnSystem.run()
 
-            if exit == 'exit':
+            if exit == semanticInputs.EXIT:
                 break
 
-            # 렌더링
-            # ■■■버퍼 지우기■■■
-            libtcod.console_clear(0) 
-            self.map.renderAndBlit()
-            userScreen.renderAndBlit()            
-            # ■■■버퍼 비우기■■■
-            libtcod.console_flush() 
-     
+######## Fighter Tests(TODO:나중에 모듈 분리되면 이것도 테스트모듈 새로 만들고 옮겨야 함.) ########
+#
+    def setUp(self):
+        self.hp = 10
+        atk = 2
+        
+        def createPlayer():
+            fighter = gsch.Fighter(self.hp, atk)
+            player = gsch.GameObject(1,1,
+                                     turnTakerComponent=gsch.TurnTaker(5),
+                                     renderComponent=gui.RenderObject(None, '1', '@', 1,1),
+                                     obstacleComponent=gsch.Obstacle(True),
+                                     fighterComponent=fighter)
+            return player
+
+        def createOther():
+            otherFighter = gsch.Fighter(self.hp, atk)
+            other = gsch.GameObject(2,2,
+                                    turnTakerComponent=gsch.TurnTaker(5),
+                                    renderComponent=gui.RenderObject(None, '2', '@', 2,2),
+                                    obstacleComponent=gsch.Obstacle(True),
+                                    fighterComponent=otherFighter)
+            return other
+
+        self.gObjFactory = gfac.GameObjectFactory(grepo.GameObjectRepository())
+        
+        global obstacleObjRefs
+        playerRef = self.gObjFactory.createGameObject(createPlayer, obstacleObjRefs)
+        self.player = playerRef()
+        otherRef = self.gObjFactory.createGameObject(createOther, obstacleObjRefs)
+        self.other = otherRef()
+        
+    def tearDown(self):
+        #clear obstacles.
+        del obstacleObjRefs[:]
+
+        return super(Test_prototype1, self).tearDown()
+
+    def test_fighterCanAttack(self):
+        #given: 
+        hp = self.other.fighterCompo.hp
+        atk = self.player.fighterCompo.power
+        #when: fight
+        self.player.fighterCompo.attack(self.other.fighterCompo)
+        #then: hp 감소
+        self.assertEqual(self.other.fighterCompo.hp, hp - atk)
+
+    def test_fighterCanDeath(self):
+        #given: player can kill other
+        self.player.fighterCompo.power = self.hp + 5
+        #when: attack
+        self.player.fighterCompo.attack(self.other.fighterCompo)
+        #then: target is dead - it isn't Obstacle any more.
+        self.assertLessEqual(self.other.fighterCompo.hp, 0)
+        self.assertFalse(self.other.obstacleCompo.blocked)
+
+    def test_placeCorpseWhenPlayerDie(self):
+        '''
+        근데 이거 알고리즘이 달라질 수 있는데..
+        일단 해본다.
+        '''
+        #given: a player
+        corpse = 'X'
+        self.player.fighterCompo.corpseChar = corpse
+        #when: the player is dead
+        self.player.fighterCompo.die()
+        #then: character of player change corpse char
+        self.assertEqual(self.player.renderCompo.char, corpse)
+        
+        #given: other player, other corpse
+        otherCorpse = '%'        
+        self.other.fighterCompo.corpseChar = otherCorpse
+        #when: other player is dead
+        self.other.fighterCompo.die()
+        #then: character of player change corpse char
+        self.assertEqual(self.other.renderCompo.char, otherCorpse)
+                    
+    def test_deadPlayerCannotAct(self):
+        beforeY = self.player.y
+        #given: dead player
+        self.player.fighterCompo.die()
+        #when: dead player try to act 
+        try:
+            self.player.move(0,1)
+        except AssertionError:
+            #행동력을 없애서 못움직이게 한다.
+            pass
+        #then: but can't act
+        self.assertEqual(self.player.y, beforeY)
+                
+        #given: 턴이 지났을 때 행동력을 회복시킴
+        self.player.turnTakerCompo.actCount = self.player.turnTakerCompo.maxActCount
+        #when: 움직일 수 있나?
+        try:
+            self.player.move(0,1)
+        except AssertionError:
+            #행동력을 없애서 못움직이게 한다.
+            pass
+        #then: 못 움직임
+        self.assertEqual(self.player.y, beforeY)
+                
+    def test_playerMustConsumeToAttackSomething(self):
+        #given: 
+        beforeActCount = self.player.turnTakerCompo.actCount
+        actCost = 1
+        #when: 
+        self.player.fighterCompo.attack(self.other.fighterCompo)
+        #then: 
+        self.assertEqual(self.player.turnTakerCompo.actCount, beforeActCount - actCost)
+
+    def test_playerCanMoveOrAttackWhenTargetObjAdjoinsPlayer(self):        
+        beforeTargetHp = self.other.fighterCompo.hp
+        atk = self.player.fighterCompo.power
+        
+        #given: plug stateChangerComponent into player, place adjacent target 
+        self.player.stateChangerCompo = self.player.setOwnerOf(proto1StateChangerCompo())
+
+        #1.when: 장애물이 근처에 없음
+        beforeY = self.player.y
+        self.other.x = self.player.x + 2
+        self.other.y = self.player.y + 2
+        self.player.stateChangerCompo.moveOrMeleeAttack(0,-1)        
+        #then: 이동 가능
+        self.assertEqual(self.player.y, beforeY - 1)
+        
+        #2.when: 장애물이 있어 이동 불가, 그 장애물이 공격 가능
+        beforeY = self.player.y
+        self.other.x = self.player.x
+        self.other.y = self.player.y + 1
+        self.player.stateChangerCompo.moveOrMeleeAttack(0,+1)        
+        #then: player can't move, attack the target
+        self.assertEqual(self.player.y, beforeY)
+        self.assertEqual(self.other.fighterCompo.hp, beforeTargetHp - atk)
+    
+        #3.when: 장애물이 있어 이동 불가, 그 장애물은 공격 불가
+        beforeY = self.player.y
+        def createTempObstacle():
+            return gsch.GameObject(self.player.x, self.player.y + 1,
+                                   obstacleComponent=gsch.Obstacle(True))
+        self.gObjFactory.createGameObject(createTempObstacle, obstacleObjRefs)
+        #then: player can't move
+        self.player.stateChangerCompo.moveOrMeleeAttack(0,+1)        
+        self.assertEqual(self.player.y, beforeY)
+
+    def test_corpseIsNotObstacle(self):        
+        # get before values
+        beforeY = self.player.y
+        beforeTargetHp = self.other.fighterCompo.hp
+        atk = self.player.fighterCompo.power
+        
+        #given: player and other adjacent player
+        self.player.stateChangerCompo = self.player.setOwnerOf(proto1StateChangerCompo())
+        self.other.x = self.player.x
+        self.other.y = self.player.y + 1
+        #when: player can attack other adjacent player
+        self.player.stateChangerCompo.moveOrMeleeAttack(0,+1)        
+        #then: so player don't move but attack. because living player is obstacle.
+        self.assertEqual(self.player.y, beforeY)
+        self.assertEqual(self.other.fighterCompo.hp, beforeTargetHp - atk)
+
+        #given: kill other adjacent player
+        beforeTargetHp = self.other.fighterCompo.hp
+        self.other.fighterCompo.die()
+        #when: player try to move over corpse
+        self.player.stateChangerCompo.moveOrMeleeAttack(0,+1)        
+        #then: it works.
+        self.assertEqual(self.player.y, beforeY + 1)
+        self.assertEqual(self.other.fighterCompo.hp, beforeTargetHp)
+        
+
+
 
 if __name__ == '__main__':
     unittest.main()

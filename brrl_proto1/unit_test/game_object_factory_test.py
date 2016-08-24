@@ -50,6 +50,31 @@ class Test_GameObjectFactory(unittest.TestCase):
         #makeFunction을 바꿔서 다양한 오브젝트를 만들 수 있는가?
         self.assertNotEqual(originFuncRef().xInMap, otherFuncRef().xInMap, "function changing did't work or same function argument passed to create two reference")
 
+    def test_listAppendsWeakrefOfGameObjWhenCallCreateGameObjectWithListArgument(self):
+        #given: a list 
+        weakrefList = []
+        #when: call createGameObject with weakref list.
+        weakref = self.factory.createGameObject(self.makeFunc, weakrefList)
+        #then: is weakref of game object in the list? 
+        self.assertEqual(len(weakrefList), 1)
+        self.assertEqual(weakrefList[0], weakref)
+
+        #given: more lists 
+        weakrefList1 = []
+        weakrefList2 = []
+        weakrefList3 = []
+        #when: call createGameObject with weakref lists.
+        weakref = self.factory.createGameObject(self.makeFunc, weakrefList1, weakrefList2, weakrefList3)
+        #then: is weakref of game object in the lists? 
+        self.assertEqual(len(weakrefList1), 1)
+        self.assertEqual(weakrefList1[0], weakref)
+        self.assertEqual(len(weakrefList2), 1)
+        self.assertEqual(weakrefList2[0], weakref)
+        self.assertEqual(len(weakrefList3), 1)
+        self.assertEqual(weakrefList3[0], weakref)
+
+        
+
     def makeFunc(self):
         return GameObject(1,2)
     def otherMakeFunc(self):

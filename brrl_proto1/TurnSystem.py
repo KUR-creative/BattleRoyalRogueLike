@@ -29,12 +29,12 @@ class TurnSystem(object):
                 self.stateChanger.inputHandler = self.userList[j]
                 self.stateChanger.gameObj = self.gameObjList[j]
                 #행동력 회복
-                self.stateChanger.gameObj.turnTakerComponent.readyToTurnTaking()
+                self.stateChanger.gameObj.turnTakerCompo.readyToTurnTaking()
                 
                 #TODO: 마우스이벤트나 gui에 대한 코딩을 하라.
                 mouse = libtcod.Mouse() #mouse 이벤트를 받기 전까지만. 임시로.
                 #모든 행동력을 소비할 때까지 입력 -> 상태 변화
-                while self.stateChanger.gameObj.turnTakerComponent.actCount > 0:
+                while self.stateChanger.gameObj.turnTakerCompo.actCount > 0:
                     # 1.입력
                     nowGameObjIsUserPlayer = self.stateChanger.inputHandler.key
                     if nowGameObjIsUserPlayer:
@@ -45,6 +45,7 @@ class TurnSystem(object):
                     messageOutOfTurnSystem = self.stateChanger.updateStates() 
                     
                     # 3. 렌더링            
+                    #성능 위주의 리팩토링이 필요할 수도 있다.
                     if self._isRenderable(self.gameObjList[j]):                        
                         # ■■■버퍼 지우기■■■
                         libtcod.console_clear(0) 
@@ -56,9 +57,9 @@ class TurnSystem(object):
                     if messageOutOfTurnSystem is not None:
                         return messageOutOfTurnSystem
 
-    def _isRenderable(self, gameObj):
-        if(gameObj.renderComponent is not None and
-           gameObj.renderComponent.visible is True):
+    def _isRenderable(self, gameObj):        
+        if(gameObj.renderCompo is not None and
+           gameObj.renderCompo.visible is True):
             return True
         else:
             return False
@@ -90,8 +91,8 @@ class GameStateChanger(object):
         gameObject의 stateChangerComponent를 이용하여 상태를 바꾼다.
         그래서 플레이어마다 다른 상태 변경을 할 수 있다.
         '''
-        assert (self.gameObj.turnTakerComponent.actCount != 0 and 
+        assert (self.gameObj.turnTakerCompo.actCount != 0 and 
                 "accepted input but player's actCount is 0!")
         
         semanticInput = self.inputHandler.getSemanticInput()
-        return self.gameObj.stateChangerComponent.changeState(semanticInput)
+        return self.gameObj.stateChangerCompo.changeState(semanticInput)

@@ -7,10 +7,6 @@
 GameStateChanger와 GameObject에 퍼져서 있다.
 이 로직을 분리해야 한다...
 
-원시 입력 -> 의미적 입력(semanticInput) -> 상태변화(state change, inputResult)
-입력 - stateChanger.updateStates()가 호출되기 전에 
-서로 다른 입력이 3개 들어와 버리면 마지막 입력만 영향을 주게 된다...
-
 현재 GameObject는 fake객체이다. 이거는 이 테스트 모듈 내에서만 쓰일 수 있다.
 테스트에서만 쓰일 법한 부분을 게임 로직으로 분리해 내라.
 
@@ -19,53 +15,137 @@ GameStateChanger와 GameObject에 퍼져서 있다.
 
 import unittest
 import libtcodpy as libtcod
+import weakref
+
+from unit_test import game_logic_for_game_state_changer as test_game
 
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '../..'))
 from brrl_proto1 import GameObjectFactory as gfac
 from brrl_proto1 import GameObjectRepository as grepo
+from brrl_proto1 import TurnSystem as tsys
 
 from os import sys, path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from UI import input_handler as ihdr
 
-#TODO: need module split - prototype1과 겹침.
 
+######## gameObject and components ########
+# 게임 객체와 컴포넌트들은 아직 모듈로 분리하기에는 완전히 리팩토링되지 않았다.
+class GameObject(object):
+    '''
+    테스트용 페이크 객체인가?
 
-class Obstacle:
+    게임 객체에 대한 정보를 담는다.
+    게임 객체 자체의 상태만을 변경하는 메서드가 있다.
+    외부(obstacle 등..)에 대해 알지 못한다.
+
+    예)외부 상태에 의존적인 행위(움직임/근접공격)는 정의할 수 없다. 
+    근처에 장애물이 있는지 게임 객체 혼자서는 알 수가 없거든
+    그런 건 stateChangerComponent에게 책임을 넘긴다.
+    '''
+    def __init__(self, xInMap, yInMap, 
+                 renderComponent=None, 
+                 obstacleComponent=None, 
+                 fighterComponent=None,
+                 turnTakerComponent=None,
+                 stateChangerComponent=None,
+                 canPenetrate=False,
+                 moveCost=1):
+        self.x = xInMap
+        self.y = yInMap
+        self.canPenetrate = canPenetrate        
+        self.moveCost = moveCost  
+        
+        #리스트에 컴포넌트들을 집어넣고 enum을 만드는 식으로 리팩토링 가능하지만...글쎄..
+        self.renderCompo = self.setOwnerOf(renderComponent)
+        self.obstacleCompo = self.setOwnerOf(obstacleComponent)        
+        self.fighterCompo = self.setOwnerOf(fighterComponent)
+        self.turnTakerCompo = self.setOwnerOf(turnTakerComponent)
+        self.stateChangerCompo = self.setOwnerOf(stateChangerComponent)
+
+    def setOwnerOf(self, component):
+        if component is not None:
+            component.owner = self
+        return component
+            
+    # 게임 오브젝트는 할 수 있는 일들이 종류마다 다들 다르다.
+    # 메서드로 하기에는 좀... 메서드는 너무 정적이다. 이걸 어떻게 리팩토링하는가?
+    # TODO: need refactoring
+    def move(self, dx, dy):   
+        #행동력을 뺄 수 있을 때만 움직일 수 있다.
+        self.turnTakerCompo.actCount -= self.moveCost # 이 값은 어떻게 리팩토링하지?
+
+        self.x += dx
+        self.y += dy               
+
+        if self.renderCompo is not None:
+            self.renderCompo.x += dx
+            self.renderCompo.y += dy
+                    
+    
+    def skip(self):
+        self.turnTakerCompo.actCount = 0
+
+    #위에 것들은 당연하고 지켜야 한다. 아래 것들은 그렇지 않다.
+    #아예 키 매핑을 해주는 메서드를 만드는 것도 고려해보자.
+    def inputS(self):
+        self.turnTakerCompo.actCount -= 2
+
+    def inputA(self):
+        if self.weapon == 'gun':
+            self.turnTakerCompo.actCount -= 2
+        else:
+            self.turnTakerCompo.actCount -= 1
+                
+    #TODO:리팩토링 필요.    
+    def getAvailableStates(self):
+        '''
+        게임오브젝트 사용자(유저/AI)에게 전달하는 게임오브젝트의 상태들
+        이후 실제 게임에서 전달될 변수들이 결정되며 이걸 기준으로 렌더링도 함.
+        전달용 클래스가 있어야 할지도 몰라.
+        이후에 GameObject를 새로 작성할 때 반드시 바뀌어야 한다.
+        '''
+        pass        
+'''
+class Obstacle(object):
+    def __init__(self, obstacleRefs, blocked=False):      
+        self.obstacleRefs = obstacleRefs
+        self._blocked = blocked
+
+    @property
+    def blocked(self):
+        return self._blocked
+
+    @blocked.setter
+    def blocked(self, bool):
+        self._blocked = bool
+        if bool is True:
+            self.obstacleRefs.append(weakref.ref(self.owner))#이거도 겹치는 거 아닌가?
+        else:
+            self.obstacleRefs = []
+            self.obstacleRefs.remove(
+'''
+#리팩토링을 위한 테스트 코드를 써라.
+
+class Obstacle(object):
     def __init__(self, blocked=False):      
         self.blocked = blocked
 
 def createObstacle(x, y):
     mCompo = Obstacle(True)
     return GameObject(x, y, obstacleComponent=mCompo)
-        
-
-obstacleObjRefs = []
-
-def isObstacleAt(xInMap, yInMap):
-    '''
-    입력된 좌표에서 장애물이 있는가?
-
-    :param int xInMap: 알고 싶은 맵의 x좌표
-    :param int yInMap: 알고 싶은 맵의 y좌표
-    :returns: Obstacle이 있으면 True / 없으면 False
-    '''
-    for obstacleRef in obstacleObjRefs:
-        if(obstacleRef().x == xInMap and 
-           obstacleRef().y == yInMap):
-            return True
-    return False
-
 
 class TurnTaker(object):
-    def __init__(self, maxActCount, inputSource=None):
+    '''
+    이 클래스에서 턴이 0이 된 이후에 일어나는 일을 정의 할 수도 있다.
+    #그리고 TurnSystem에서 호출하면 된다.
+    '''
+    def __init__(self, maxActCount):
         self.maxActCount = maxActCount        
         self._actCount = maxActCount
 
-        #self.inputSource = inputSource
-    
     @property
     def actCount(self):
         return self._actCount
@@ -80,256 +160,62 @@ class TurnTaker(object):
         턴 시작을 위한 준비 - 행동력 회복.
         '''
         self.actCount = self.maxActCount
-        if self.owner.fighterComponent is not None:
-            self.owner.fighterComponent.hpSubtraction()
+        if self.owner.fighterCompo is not None:
+            self.owner.fighterCompo.hpSubtraction()
 
-    #여기에서 턴이 0이 된 이후에 일어나는 일을 정의 할 수도 있다.
-    #그리고 TurnSystem에서 호출하면 된다.
-
-class Fighter:
-    def __init__(self, hp, isTemporary=False):
-        self.hp = hp
+class Fighter(object):
+    def __init__(self, hp, power=0, corpseChar=u'死', isTemporary=False):
+        self._hp = hp
+        self.power = power
+        self.corpseChar = corpseChar
         self.isTemporary = isTemporary
+
+        self.attackCost = 1
+        
+    def attack(self, targetFighter):
+        print targetFighter.hp, ' - ', #DBG
+
+        self.owner.turnTakerCompo.actCount -= self.attackCost # 이 값은 어떻게 리팩토링하지?
+        targetFighter.hp -= self.power
+
+        print self.power, ' = ', targetFighter.hp, ':target hp' #DBG
+
+    def die(self):
+        #dead player is not Obstacle
+        self.owner.obstacleCompo.blocked = False
+        #dead player can't act
+        tCompo = self.owner.turnTakerCompo
+        if tCompo is not None:
+            tCompo.actCount = 0
+            tCompo.maxActCount = 0
+        #dead player left corpse
+        rCompo = self.owner.renderCompo
+        if rCompo is not None:
+            rCompo.char = self.corpseChar
+
+        print 'he is dead!' #DBG
 
     def hpSubtraction(self):
         if self.isTemporary:
-            self.hp -= 1
+            self.hp -= 1           
 
+    @property
+    def hp(self):
+        return self._hp
 
-class GameObject:
-    '''
-    테스트용 fake객체.
+    @hp.setter
+    def hp(self, val):
+        self._hp = val
+        if self._hp < 0:
+            self.die()
     
-    게임 객체에 대한 정보를 담는다.
-    게임 객체 자체의 상태만을 변경하는 메서드가 있다.
-    외부(obstacle 등..)에 대해 알지 못한다.
-    '''
-    def __init__(self, xInMap, yInMap, 
-                 renderComponent=None, 
-                 obstacleComponent=None, 
-                 fighterComponent=None,
-                 turnTakerComponent=None,
-                 stateChangerComponent=None,
-                 canPenetrate=False,
-                 moveCost=1):
-        self.x = xInMap
-        self.y = yInMap
-        self.canPenetrate = canPenetrate        
-        self.moveCost = moveCost  
-        self.fakeState = None      
-
-        #리스트에 컴포넌트들을 집어넣고 enum을 만드는 식으로 리팩토링 가능.
-        self.renderComponent = renderComponent
-        if renderComponent is not None:
-            self.renderComponent.owner = self
-
-        self.obstacleComponent = obstacleComponent
-        if obstacleComponent is not None:
-            self.obstacleComponent.owner = self
-
-        self.fighterComponent = fighterComponent
-        if fighterComponent is not None:
-            self.fighterComponent.owner = self
-
-        self.turnTakerComponent = turnTakerComponent
-        if turnTakerComponent is not None:
-            self.turnTakerComponent.owner = self
-
-        self.stateChangerComponent = stateChangerComponent
-        if stateChangerComponent is not None:
-            self.stateChangerComponent.owner = self            
-
-    # 게임 오브젝트는 할 수 있는 일들이 종류마다 다들 다르다.
-    # 메서드로 하기에는 좀... 메서드는 너무 정적이다. 이걸 어떻게 리팩토링하는가?
-    # TODO: need refactoring
-    def move(self, dx, dy):        
-        self.x += dx
-        self.y += dy        
-        self.turnTakerComponent.actCount -= self.moveCost # 이 값은 어떻게 리팩토링하지?
-
-        if self.renderComponent is not None:
-            self.renderComponent.x += dx
-            self.renderComponent.y += dy
-                    
-    def skip(self):
-        self.turnTakerComponent.actCount = 0
-
-    #위에 것들은 당연하고 지켜야 한다. 아래 것들은 그렇지 않다.
-    #아예 키 매핑을 해주는 메서드를 만드는 것도 고려해보자.
-    def inputS(self):
-        self.turnTakerComponent.actCount -= 2
-
-    def inputA(self):
-        if self.weapon == 'gun':
-            self.turnTakerComponent.actCount -= 2
-        else:
-            self.turnTakerComponent.actCount -= 1
-
-    
-    #TODO:리팩토링 필요.    
-    def getAvailableStates(self):
-        '''
-        게임오브젝트 사용자(유저/AI)에게 전달하는 게임오브젝트의 상태들
-        이후 실제 게임에서 전달될 변수들이 결정되며 이걸 기준으로 렌더링도 함.
-        전달용 클래스가 있어야 할지도 몰라.
-        이후에 GameObject를 새로 작성할 때 반드시 바뀌어야 한다.
-        '''
-        
-        return self.fakeState         
 
 
-class AiInputHandler(object):
-    def __init__(self, gameObj, agent):
-        self.gameObj = gameObj
-        self.agent = agent
-        
-        self.key = None #인풋핸들러 덕타이핑을 위한 가짜 인터페이스
-        # None인 경우 인공지능.
+semanticInputs = test_game.semanticInputs
 
-    def getSemanticInput(self):        
-        nowSituation = self.gameObj.getAvailableStates()
-        return self.agent.calcNextAct(nowSituation)
-        
+obstacleObjRefs = []
 
-class GameStateChanger(object):
-    '''
-    입력 받은 게임의 상태에 따라 InputHandler에서 들어온 semanticInput을 해석하고
-    게임의 이전 상태에 따라 상태를 변경한다.
-
-    기본적으로 gameObj에게 책임을 미룬다... 
-    gameObj가 자신만 변화시키는 경우에는 상태변화는 gameObj 안에서 캡슐화된다.
-
-    모든 gameObj에 대한 동일한 상태변화는 여기서 일어날 수도 있다.
-    '''
-    #DBG: debug = 0
-    def __init__(self, inputHandler, gameObj):
-        self.gameObj = gameObj
-        self.inputHandler = inputHandler
-
-    def setInputTableOfUser(self, inputTable):
-        self.inputHandler.inputTable = inputTable
-
-    def updateStates(self):
-        '''
-        gameObject의 stateChangerComponent를 이용하여 상태를 바꾼다.
-        그래서 플레이어마다 다른 상태 변경을 할 수 있다.
-        '''
-        assert (self.gameObj.turnTakerComponent.actCount != 0 and 
-                "accepted input but player's actCount is 0!")
-        
-        semanticInput = self.inputHandler.getSemanticInput()
-        return self.gameObj.stateChangerComponent.changeState(semanticInput)
-        
-
-class TurnSystem(object):
-    '''
-    턴제 로그라이크의 턴제 시스템을 관리한다.
-    TODO: 튜플의 리스트로 한번에 받으면서 생성하는 법을 생각하라.
-    '''
-    def __init__(self, userList, gameObjList):
-        assert len(userList) == len(gameObjList)
-        self.userList = userList
-        self.gameObjList = gameObjList
-        self.stateChanger = GameStateChanger(None, None)
-
-    def run(self, times=1):        
-        for i in range(times):
-            for j in range( len(self.gameObjList) ):
-                #대상 변경
-                self.stateChanger.inputHandler = self.userList[j]
-                self.stateChanger.gameObj = self.gameObjList[j]
-                #행동력 회복
-                self.stateChanger.gameObj.turnTakerComponent.readyToTurnTaking()
-                
-                mouse = libtcod.Mouse() #mouse 이벤트를 받기 전까지만. 임시로.
-                #모든 행동력을 소비할 때까지 입력 -> 상태 변화
-                while self.stateChanger.gameObj.turnTakerComponent.actCount > 0:
-                    nowGameObjIsUserPlayer = self.stateChanger.inputHandler.key
-                    if nowGameObjIsUserPlayer:
-                        #유저의 입력을 기다림.
-                        libtcod.console_flush()
-                        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,self.stateChanger.inputHandler.key,mouse)
-                                                                                    
-                    messageOutOfTurnSystem = self.stateChanger.updateStates() 
-                    if messageOutOfTurnSystem is not None:
-                        return messageOutOfTurnSystem
-
-######## game specific logic classes ########
-
-class testStateChangerCompo:
-    '''
-    덕타이핑을 써서, 아래 함수만 있으면 어떤 클래스든 이게 될 수 있다.
-    또 이거는 gameObject에 들어가는 컴포넌트이므로 얼마든지 gobj(owner)에 접근 가능.
-    '''
-    def changeState(self, semanticInput):
-        #DBG: print semanticInput,
-        # TODO: need refactoring 
-        #원시입력기(inputHandler), 유저, 장애물 목록 등 
-        #다양한 상태에 따라 다양한 반응이 필요하다. 즉, 매우 변화가 잦은 부분이다.
-        if semanticInput is None: #입력이 없다            
-            return None
-
-        elif semanticInput == 'skip': 
-            self.owner.skip()
-        
-        elif semanticInput == 'up':
-            self.owner.move(0, -1)#렌더링 코드는 여기에 쓰는가?  Nope!
-        
-        elif semanticInput == 'down':
-            #모든 move에 장애물 뚫기 테스트를 적용해야 한다.
-            #gameObj 종류에 따라 장애물을 뚫을 수도 있다.
-            #isObstacleAt함수는 안 좋다. 이 클래스ㅜ에 주입되지 않은 외부 환경을 참조하니까.
-            if(isObstacleAt(self.owner.x + 0, self.owner.y + 1) and 
-               not self.owner.canPenetrate ):
-                print "cannot move over blocked obstacle!"  
-            else:
-                self.owner.move(0, +1)
-        
-        elif semanticInput == 's': 
-            #모든 종류의 행동에 대해 적용해야 한다. actCost = 0 인 행동도 있다.
-            #입력 S의 actCost는 2이다. 
-            #그런데.. GameObj의 inputS에 있는 2와 전혀 상관이 없다.        
-            # 상관 있게 만들어야 한다.
-            if self.owner.turnTakerComponent.actCount > 2:
-                self.owner.inputS()
-
-        elif semanticInput == 'a':
-            #이것도 무기 클래스를 만들어야 하겠지.
-            self.owner.inputA()
-
-        elif semanticInput == 'esc':
-            return 'exit' #
-        
-        if(self.owner.fighterComponent is not None and
-           self.owner.fighterComponent.hp == 0 and
-           self.owner.fighterComponent.isTemporary):
-            return 'user is dead'
-
-        print semanticInput, #DBG                    
-                
-class testOnlyUpAi(object):
-    def calcNextAct(self, nowGameState):
-        return 'up'
-class testOnlyDownAi(object):
-    def calcNextAct(self, nowGameState):
-        return 'down'
-class testOnlySkipAi(object):
-    def calcNextAct(self, nowGameState):
-        return 'skip'
-class testMultiAi(object):
-    def __init__(self):
-        self._innerFlag = 0
-    def calcNextAct(self, nowGameState):
-        if self._innerFlag == 0:
-            self._innerFlag += 1
-            return 'up'
-        else:
-            return 'skip'
-class testSKeyAi(object):
-    def calcNextAct(self, nowGameState):
-        return 's'
-
-
+######## test cases ########
 class Test_game_state_changer(unittest.TestCase):
     def setUp(self):
         self.key = libtcod.Key()
@@ -337,12 +223,12 @@ class Test_game_state_changer(unittest.TestCase):
         self.initMaxActCount = 5
         ttaker = TurnTaker(self.initMaxActCount)
         self.userPlayer = GameObject(1,2, turnTakerComponent=ttaker,
-                                     stateChangerComponent=testStateChangerCompo())
+                                     stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
         
         #원시입력핸들러와 게임상태변경자 연결
         testInputTable = dict()        
         ihandler = ihdr.InputHandler(self.key, testInputTable)        
-        self.stateChanger = GameStateChanger(ihandler, self.userPlayer)
+        self.stateChanger = tsys.GameStateChanger(ihandler, self.userPlayer)
        
         return super(Test_game_state_changer, self).setUp()
 
@@ -355,15 +241,15 @@ class Test_game_state_changer(unittest.TestCase):
     def test_noInputNoStateChange(self):                            
         #given: no available input(default inputTable in setUp())        
         #when: no input 
-        beforeActCount = self.userPlayer.turnTakerComponent.actCount
+        beforeActCount = self.userPlayer.turnTakerCompo.actCount
         self.stateChanger.updateStates()        
         #then: no change
         self.assertActCountConsumptionIsCost(self.userPlayer, beforeActCount, cost=0)
                 
     def test_inputSomeKeyToSkipTurnOfPlayer(self):
         #given: 스페이스바로 스킵, 게임 상태를 상태변화자에게 전달
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): 'skip'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): semanticInputs.SKIP}
         )
         
         #when: 스페이스바를 누르면(가짜 입력)
@@ -371,15 +257,15 @@ class Test_game_state_changer(unittest.TestCase):
         self.stateChanger.updateStates()
         
         #then: 행동력이 모두 소모됨
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 0)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 0)
 
     def test_inputSomeKeyToMoveGameObj(self):
         #이전 값
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         
         #given: UP key로 위로 1칸 이동
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): 'up'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): semanticInputs.UP}
         )
 
         #when: UP key를 누르면
@@ -394,7 +280,7 @@ class Test_game_state_changer(unittest.TestCase):
         #given: 다른 게임 오브젝트 움직이기(사실 뻔함)
         ttaker = TurnTaker(5)
         otherPlayer = GameObject(1,2, turnTakerComponent=ttaker,
-                                 stateChangerComponent=testStateChangerCompo())
+                                 stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
         self.stateChanger.gameObj = otherPlayer
 
         #이전 값
@@ -409,8 +295,8 @@ class Test_game_state_changer(unittest.TestCase):
         self.assertActCountConsumptionIsCost(self.userPlayer, beforeActCount, cost=1)
     
     def test_cannotMoveOverObstacle(self):
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): 'down'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): semanticInputs.DOWN}
         )
 
         #변화 이전 값
@@ -433,8 +319,8 @@ class Test_game_state_changer(unittest.TestCase):
         self.assertActCountConsumptionIsCost(self.userPlayer, beforeActCount, cost=0)
 
     def test_someGameObjCanPenetrateObstacles(self):        
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): 'down'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_DOWN, ihdr.NOT_CHAR): semanticInputs.DOWN}
         )
 
         #변화 이전 값
@@ -459,24 +345,24 @@ class Test_game_state_changer(unittest.TestCase):
        
     def test_noChangeWhenActCostOfDoingIsMoreThanMaxActCountOfPlayer(self):        
         #given: setup시의 maxActCount는 5이고, s를 누르면 행동력 2가 까이는 행동을 함.
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(ihdr.NOT_VK, 's'): 's'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(ihdr.NOT_VK, 's'): semanticInputs.KEY_S}
         )
         #when: 입력이 3번 들어오면 2번까지는 동작하나 마지막은 불가능.
         self.pseudoKeyInput(ihdr.NOT_VK,'s')
                        
         #then: 행동력은 5 -> 's' -> 3 -> 's' -> 1 -> 's' -> 1 이 됨. 
         self.stateChanger.updateStates() 
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 3)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 3)
         self.stateChanger.updateStates() 
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 1)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 1)
         self.stateChanger.updateStates() # 3번의 입력, 마지막은 변화 없음.
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 1)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 1)
 
                             
     def test_sameInputToMoveButDifferentActCostEachPlayers(self):
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): 'up'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): semanticInputs.UP}
         )
         
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
@@ -484,7 +370,7 @@ class Test_game_state_changer(unittest.TestCase):
         ttaker = TurnTaker(5)
         otherPlayer = GameObject(1,2, turnTakerComponent=ttaker, 
                                  moveCost=2,
-                                 stateChangerComponent=testStateChangerCompo())
+                                 stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
         
         self.stateChanger.gameObj = otherPlayer
 
@@ -499,11 +385,11 @@ class Test_game_state_changer(unittest.TestCase):
     
     def test_sameInputButDifferentAttackIfPlayerHaveWeapon(self):
         #setUp: 'a' 입력 가능
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(ihdr.NOT_VK, 'a'): 'a'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(ihdr.NOT_VK, 'a'): semanticInputs.KEY_A}
         )
         
-        beforeActCount = self.userPlayer.turnTakerComponent.actCount
+        beforeActCount = self.userPlayer.turnTakerCompo.actCount
         #given: weapon 총을 가진 플레이어        
         self.userPlayer.weapon = 'gun'
         #when: 버튼 a를 눌러 공격
@@ -512,7 +398,7 @@ class Test_game_state_changer(unittest.TestCase):
         #then: 총은 공격시에 행동력 2개 쓴다        
         self.assertActCountConsumptionIsCost(self.userPlayer, beforeActCount, cost=2)
         
-        beforeActCount = self.userPlayer.turnTakerComponent.actCount
+        beforeActCount = self.userPlayer.turnTakerCompo.actCount
         #given: weapon 총을 갖지 않은 플레이어
         self.userPlayer.weapon = None
         #when: 버튼 a를 눌러 공격
@@ -526,10 +412,10 @@ class Test_game_state_changer(unittest.TestCase):
         실제 게임에 있을 법한 턴처럼 구성된 테스트
         입력없음 -> 입력 -> 입력없음 -> 입력... 
         '''
-        self.stateChanger.setInputTableOfUser(            
-             {ihdr.KeyTuple(ihdr.NOT_VK, 's'): 's',
-              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): 'up',
-              ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): 'skip'}
+        self.stateChanger.setInputTableOfNowUser(            
+             {ihdr.KeyTuple(ihdr.NOT_VK, 's'): semanticInputs.KEY_S,
+              ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR): semanticInputs.UP,
+              ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): semanticInputs.SKIP}
         )
         
         #이전 값
@@ -561,8 +447,8 @@ class Test_game_state_changer(unittest.TestCase):
 
     def test_inputButActCountOfPlayerIsZero(self):
         #given: 
-        self.stateChanger.setInputTableOfUser(
-            {ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): 'skip'}
+        self.stateChanger.setInputTableOfNowUser(
+            {ihdr.KeyTuple(libtcod.KEY_SPACE, ' '): semanticInputs.SKIP}
         )                
         #when: 스킵해서 현재 stateChanger의 플레이어 행동력이 0 만들기.
         self.pseudoKeyInput(libtcod.KEY_SPACE,' ')
@@ -572,7 +458,7 @@ class Test_game_state_changer(unittest.TestCase):
 
     def test_raiseErrorWhenActCountOfPlayerIsNegativeNumber(self):    
         try:
-            self.stateChanger.gameObj.turnTakerComponent.actCount = -1
+            self.stateChanger.gameObj.turnTakerCompo.actCount = -1
         except AssertionError:    
             pass
         else:
@@ -585,7 +471,7 @@ class Test_game_state_changer(unittest.TestCase):
     def test_ai_MoveGameObjOneCell(self):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: AI를 stateChanger에 연결
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer,testOnlyUpAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlyUpAi())
         #when: ai는 그냥 한 칸 움직인다!
         self.stateChanger.updateStates()         
         #then: 위로 한 칸 움직이고 행동력 1 줄이고.                    
@@ -597,9 +483,8 @@ class Test_game_state_changer(unittest.TestCase):
     def test_ai_noInputNoStateChange(self):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: AI를 stateChanger에 연결
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, test_onlyUpAi())
-        #when: ai는 userPlayer의 상태(fakeState)를 보고 판단하여 이번엔 안 움직인다.
-        self.userPlayer.fakeState = None
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.test_onlyUpAi())
+        #when: ai는 안 움직인다.
         self.stateChanger.updateStates()         
         #then: 상태는 변화하지 않는다. 
         self.assertEqualPositionInMap(self.userPlayer, beforeX, beforeY)
@@ -607,17 +492,17 @@ class Test_game_state_changer(unittest.TestCase):
                 
     def test_ai_skipTurnOfAI(self):        
         #given: AI를 stateChanger에 연결
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testOnlySkipAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlySkipAi())
         #when: ai는 턴을 skip한다.
         self.stateChanger.updateStates()
         #then: 행동력이 모두 소모됨
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 0)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 0)
        
     def test_ai_cannotMoveOverObstacle(self):        
         beforeX = self.userPlayer.x
         beforeY = self.userPlayer.y
-        beforeActCount = self.userPlayer.turnTakerComponent.actCount
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer,testOnlyDownAi())
+        beforeActCount = self.userPlayer.turnTakerCompo.actCount
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlyDownAi())
         #given: userPlayer 한 칸 아래에 장애물 놓기.
         gameObjFactory = gfac.GameObjectFactory(grepo.GameObjectRepository())
         obstacleObjRefs.append(
@@ -633,20 +518,19 @@ class Test_game_state_changer(unittest.TestCase):
             
     def test_ai_noChangeWhenActCostOfSomethingIsMoreThanMaxActCountOfPlayer(self):
         #given: setup시의 maxActCount는 5이고, s를 누르면 행동력 2가 까이는 행동을 함.
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testSKeyAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testSKeyAi())
         #when: 입력이 3번 들어오면 2번까지는 동작하나 마지막은 불가능.
-        self.userPlayer.fakeState = 's'                                
         #then: 행동력은 5 -> 's' -> 3 -> 's' -> 1 -> 's' -> 1 이 됨. 
         self.stateChanger.updateStates() 
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 3)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 3)
         self.stateChanger.updateStates() 
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 1)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 1)
         self.stateChanger.updateStates() # 3번의 입력, 마지막은 변화 없음.
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 1)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 1)
     
     def test_ai_inputButActCountOfPlayerIsZero(self):       
         #given: ai 넣기                
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testOnlySkipAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlySkipAi())
         #when: 스킵해서 현재 stateChanger의 플레이어 행동력이 0 만들기.
         self.stateChanger.updateStates()
         #then: 행동력이 0인데 입력이 들어오는 것은 비정상적인 작동이다.
@@ -655,7 +539,7 @@ class Test_game_state_changer(unittest.TestCase):
     def test_ai_sameStateButDifferentStateChanging(self):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: 위로만 가는 ai
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testOnlyUpAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlyUpAi())
         #when: ai 입력 한 번
         self.stateChanger.updateStates()
         #then: 한 칸 위로, 행동력 감소
@@ -664,7 +548,7 @@ class Test_game_state_changer(unittest.TestCase):
         
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: 아래로만 가는 ai
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testOnlyDownAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlyDownAi())
         #when: ai 입력 한 번        
         self.stateChanger.updateStates()
         #then: 한 칸 아래로, 행동력 감소
@@ -673,17 +557,17 @@ class Test_game_state_changer(unittest.TestCase):
     
         (beforeX, beforeY) = self.getXYofPlayer(self.userPlayer)
         #given: 스킵하는 ai
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testOnlySkipAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testOnlySkipAi())
         #when: ai 스킵        
         self.stateChanger.updateStates()
         #then: 좌표 변화 없음, 행동력 = 0
         self.assertEqualPositionInMap(self.userPlayer, beforeX + 0, beforeY + 0)
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 0)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 0)
     
     def test_ai_multiActPatternAI(self):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         #given: 전략을 수정하는 ai
-        self.stateChanger.inputHandler = AiInputHandler(self.userPlayer, testMultiAi())
+        self.stateChanger.inputHandler = ihdr.AiInputHandler(self.userPlayer, test_game.testMultiAi())
         # 1. go up
         self.stateChanger.updateStates() 
         self.assertEqualPositionInMap(self.userPlayer, beforeX + 0, beforeY - 1)
@@ -692,12 +576,12 @@ class Test_game_state_changer(unittest.TestCase):
         (beforeX, beforeY, beforeActCount) = self.getXYandActCountOfPlayer(self.userPlayer)
         self.stateChanger.updateStates()
         self.assertEqualPositionInMap(self.userPlayer, beforeX + 0, beforeY + 0)
-        self.assertEqual(self.userPlayer.turnTakerComponent.actCount, 0)
+        self.assertEqual(self.userPlayer.turnTakerCompo.actCount, 0)
         
     def test_raiseErrorWhenTurnSystemCannotMakePairOfUsersAndGameObjects(self):
         ulist = [1,2,3]
         glist = [1,2]
-        self.assertRaises(AssertionError, lambda:TurnSystem(ulist,glist))
+        self.assertRaises(AssertionError, lambda:tsys.TurnSystem(ulist,glist))
 
 ######## 라운드 로빈 턴 시스템 구현하기(실제루프 사용) ########        
     def test_threeAiControllEachPlayersInRoundRobinTurnSystem(self):
@@ -713,26 +597,25 @@ class Test_game_state_changer(unittest.TestCase):
             ttaker = TurnTaker(self.initMaxActCount)
             player = GameObject(i*10, i*10, 
                                 turnTakerComponent=ttaker,
-                                stateChangerComponent=testStateChangerCompo())
-            player.fakeState = 'ai test'
+                                stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
             playerList.append(player)
         # 3개의 ai가 있는 리스트
-        aiList = [AiInputHandler(playerList[0], testOnlyUpAi()),
-                  AiInputHandler(playerList[1], testOnlyDownAi()),
-                  AiInputHandler(playerList[2], testOnlySkipAi())]        
+        aiList = [ihdr.AiInputHandler(playerList[0], test_game.testOnlyUpAi()),
+                  ihdr.AiInputHandler(playerList[1], test_game.testOnlyDownAi()),
+                  ihdr.AiInputHandler(playerList[2], test_game.testOnlySkipAi())]        
         # 3개의 유저 상태가 있는 리스트
         x = 0; y = 1; ac = 2; #actCount
         beforeTuples = [self.getXYandActCountOfPlayer(playerList[i]) for i in range(3)]
         
         #when: 턴 시스템 작동
-        turnSystem = TurnSystem(aiList, playerList)
+        turnSystem = tsys.TurnSystem(aiList, playerList)
         turnSystem.run(1) #루프 한번 
         
         #then: ai들: up only, down only, skip only, 그리고 
         #모두 행동력은 0 - 즉 행동력 5를 모두 소비함.
-        self.assertEqual(playerList[0].turnTakerComponent.actCount, 0)
-        self.assertEqual(playerList[1].turnTakerComponent.actCount, 0)
-        self.assertEqual(playerList[2].turnTakerComponent.actCount, 0)
+        self.assertEqual(playerList[0].turnTakerCompo.actCount, 0)
+        self.assertEqual(playerList[1].turnTakerCompo.actCount, 0)
+        self.assertEqual(playerList[2].turnTakerCompo.actCount, 0)
         
         self.assertEqualPositionInMap(playerList[0], beforeTuples[0][x], beforeTuples[0][y] - 5) #up
         self.assertEqualPositionInMap(playerList[1], beforeTuples[1][x], beforeTuples[1][y] + 5) #down
@@ -760,17 +643,16 @@ class Test_game_state_changer(unittest.TestCase):
             ttaker = TurnTaker(self.initMaxActCount)
             player = GameObject(i*10, i*10, 
                                 turnTakerComponent=ttaker,
-                                stateChangerComponent=testStateChangerCompo())
-            player.fakeState = 'ai test'
+                                stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
             playerList.append(player)       #ai
         playerList.append(self.userPlayer)  #user
 
         # 3개의 ai + 유저가 있는 리스트
-        aiList = [AiInputHandler(playerList[0], testOnlyUpAi()),
-                  AiInputHandler(playerList[1], testOnlyDownAi()),
-                  AiInputHandler(playerList[2], testOnlySkipAi()),
-                  ihdr.InputHandler(self.key, {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):'up',
-                                               ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):   'esc'}) ]        
+        aiList = [ihdr.AiInputHandler(playerList[0], test_game.testOnlyUpAi()),
+                  ihdr.AiInputHandler(playerList[1], test_game.testOnlyDownAi()),
+                  ihdr.AiInputHandler(playerList[2], test_game.testOnlySkipAi()),
+                  ihdr.InputHandler(self.key, {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):semanticInputs.UP,
+                                               ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):   semanticInputs.ESC}) ]        
         
         # 3+1개의 플레이어 상태가 있는 리스트
         x = 0; y = 1; ac = 2; #actCount
@@ -778,7 +660,7 @@ class Test_game_state_changer(unittest.TestCase):
         
         loop = 1
         self.initLibtcodWindow()
-        turnSystem = TurnSystem(aiList, playerList)
+        turnSystem = tsys.TurnSystem(aiList, playerList)
         while not libtcod.console_is_window_closed():                      
             mouse = libtcod.Mouse()
             
@@ -791,10 +673,10 @@ class Test_game_state_changer(unittest.TestCase):
 
             #then: ai들: up only, down only, skip only, 그리고 유저. 
             #모두 행동력은 0 - 즉 행동력 5를 모두 소비함.
-            self.assertEqual(playerList[0].turnTakerComponent.actCount, 0)
-            self.assertEqual(playerList[1].turnTakerComponent.actCount, 0)
-            self.assertEqual(playerList[2].turnTakerComponent.actCount, 0)
-            self.assertEqual(playerList[2].turnTakerComponent.actCount, 0)
+            self.assertEqual(playerList[0].turnTakerCompo.actCount, 0)
+            self.assertEqual(playerList[1].turnTakerCompo.actCount, 0)
+            self.assertEqual(playerList[2].turnTakerCompo.actCount, 0)
+            self.assertEqual(playerList[2].turnTakerCompo.actCount, 0)
         
             self.assertEqualPositionInMap(playerList[0], beforeTuples[0][x], beforeTuples[0][y] - 5*loop) #up
             self.assertEqualPositionInMap(playerList[1], beforeTuples[1][x], beforeTuples[1][y] + 5*loop) #down
@@ -810,7 +692,7 @@ class Test_game_state_changer(unittest.TestCase):
         
         #given:
         initHp = 3
-        self.userPlayer.fighterComponent = Fighter(initHp, isTemporary=True)
+        self.userPlayer.fighterCompo = Fighter(initHp, isTemporary=True)
         
         #num = 4
         # 3+1개의 player가 있는 리스트
@@ -819,20 +701,19 @@ class Test_game_state_changer(unittest.TestCase):
             ttaker = TurnTaker(self.initMaxActCount)
             player = GameObject(i*10, i*10, turnTakerComponent=ttaker, 
                                             fighterComponent=Fighter(initHp),
-                                            stateChangerComponent=testStateChangerCompo())
-            player.fakeState = 'ai test'
+                                            stateChangerComponent=test_game.testStateChangerCompo(obstacleObjRefs))
             playerList.append(player)       #ai
         playerList.append(self.userPlayer)  #user
 
         # 3개의 ai + 유저가 있는 리스트
-        aiList = [AiInputHandler(playerList[0], testOnlyUpAi()),
-                  AiInputHandler(playerList[1], testOnlyDownAi()),
-                  AiInputHandler(playerList[2], testOnlySkipAi()),
-                  ihdr.InputHandler(self.key, {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):'up'}) ]        
+        aiList = [ihdr.AiInputHandler(playerList[0], test_game.testOnlyUpAi()),
+                  ihdr.AiInputHandler(playerList[1], test_game.testOnlyDownAi()),
+                  ihdr.AiInputHandler(playerList[2], test_game.testOnlySkipAi()),
+                  ihdr.InputHandler(self.key, {ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):semanticInputs.UP}) ]        
         
         loop = 1
         self.initLibtcodWindow()
-        turnSystem = TurnSystem(aiList, playerList)
+        turnSystem = tsys.TurnSystem(aiList, playerList)
         while not libtcod.console_is_window_closed():                      
             mouse = libtcod.Mouse()
             
@@ -841,11 +722,11 @@ class Test_game_state_changer(unittest.TestCase):
                 
             #then: ai들: up only, down only, skip only, 그리고 유저. 
             #유저는 hp가 1턴에 1씩 줄어들게 됨. ai는 멀쩡함.
-            self.assertEqual(playerList[1].fighterComponent.hp, initHp)           
-            self.assertEqual(self.userPlayer.fighterComponent.hp, initHp - loop)           
+            self.assertEqual(playerList[1].fighterCompo.hp, initHp)           
+            self.assertEqual(self.userPlayer.fighterCompo.hp, initHp - loop)           
             
             #유저가 죽으면 게임 종료.
-            if self.userPlayer.fighterComponent.hp == 0:
+            if self.userPlayer.fighterCompo.hp == 0:
                 #원래 게임 루프는 이걸 알면 안됨..
                 self.assertEqual(flag, 'user is dead')
                 print '\n >>> user is dead!!'
@@ -853,13 +734,13 @@ class Test_game_state_changer(unittest.TestCase):
             
             loop += 1
 
-######## 유틸리티 메서드 ########
+######## 테스트 유틸리티 메서드 ########
     def assertEqualPositionInMap(self, gameObj, xInMap, yInMap):
         self.assertEqual(gameObj.x, xInMap, "obj.x :" + str(gameObj.x) + " != " + str(xInMap) + ": expected x")
         self.assertEqual(gameObj.y, yInMap, "obj.y :" + str(gameObj.y) + " != " + str(yInMap) + ": expected y")
 
     def assertActCountConsumptionIsCost(self, player, beforeActCount, cost):
-        self.assertEqual(player.turnTakerComponent.actCount, beforeActCount - cost)
+        self.assertEqual(player.turnTakerCompo.actCount, beforeActCount - cost)
 
     def pseudoKeyInput(self, vk, c):
         assert type(vk) is int
@@ -872,12 +753,13 @@ class Test_game_state_changer(unittest.TestCase):
         return (player.x, player.y)
 
     def getXYandActCountOfPlayer(self, player):
-        return (player.x, player.y, player.turnTakerComponent.actCount)
+        return (player.x, player.y, player.turnTakerCompo.actCount)
 
     def initLibtcodWindow(self):
         libtcod.console_set_custom_font( 'font.png', libtcod.FONT_LAYOUT_ASCII_INROW, 32, 2048)
         libtcod.console_init_root(30, 30, 'python + libtcod tutorial', False)
         libtcod.sys_set_fps(20)
+
 
 if __name__ == '__main__':
     unittest.main()
