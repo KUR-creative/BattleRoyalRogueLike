@@ -56,6 +56,12 @@ def createEnemy(x,y):
                            turnTakerComponent=tCompo,
                            stateChangerComponent=proto1StateChangerCompo())
 
+def createFovEffects(x,y):    
+    cell = gui.RenderObject(fovScreen,
+                            'fovCell'+ str(x+y), ' ',
+                            x,y, foreColor=libtcod.black, backColor=libtcod.black)
+    return gsch.GameObject(x,y, cell)
+
 def createUserPlayer():       
     initX = 4
     initY = gset.WINDOW_HEIGHT/2
@@ -64,7 +70,7 @@ def createUserPlayer():
                               foreColor=libtcod.black)
     obsCompo = gsch.Obstacle(True)
     fCompo = gsch.Fighter(30,5)
-    tCompo = gsch.TurnTaker(1)
+    tCompo = gsch.TurnTaker(2)
     return gsch.GameObject(initX, initY,                            
                            renderComponent=rCompo, 
                            obstacleComponent=obsCompo,
@@ -99,8 +105,6 @@ class proto1StateChangerCompo(object):
     '''
     
     def changeState(self, semanticInput):
-        #print semanticInput, ' ', #DBG
-
         if semanticInput is None:
             return None        
         
@@ -113,6 +117,22 @@ class proto1StateChangerCompo(object):
         elif semanticInput == semanticInputs.RIGHT:
             self.moveOrMeleeAttack(+1, 0)
 
+        #recompute fov!
+        computeFov(self.owner.x, self.owner.y, 15)      
+        #render fov!
+        if self.owner == userRef():
+            for y in range(gset.WINDOW_HEIGHT):
+                for x in range(gset.WINDOW_WIDTH):
+                    #TODO: 이것도 전역변수보단 나중에 생성자에서 주입해줘야겠지.
+                    fovEffect = fovEffectRefs[x][y]()
+                    if libtcod.map_is_in_fov(fov_map, x, y):
+                        #fovEffect = gsch.GameObject()
+                        fovEffect.renderCompo.char = ' '
+                        fovEffect.renderCompo.backColor = libtcod.white
+                    else:
+                        fovEffect.renderCompo.char = ' '
+                        fovEffect.renderCompo.backColor = libtcod.black
+
         if semanticInput == semanticInputs.SKIP:
             self.owner.skip()
 
@@ -123,7 +143,8 @@ class proto1StateChangerCompo(object):
         #TODO: maybe refactor.. 저거 장애물참조리스트 이 객체 만들 때 집어넣어 주는게 낫겠지 아무래도?        
         adjacentObstacle = getObstacleAt(self.owner.x + dx, self.owner.y + dy, obstacleObjRefs)
         if adjacentObstacle is None:
-            self.owner.move(dx, dy)            
+            self.owner.move(dx, dy)      
+                                             
         else:
             print "cannot move over blocked obstacle!"  
             return adjacentObstacle
@@ -135,23 +156,28 @@ class proto1StateChangerCompo(object):
            adjacentObstacle.fighterCompo is not None):
             #공격 가능하면 공격한다.
             self.owner.fighterCompo.attack(adjacentObstacle.fighterCompo)
-            '''
-        if direction == semanticInputs.DOWN:
-            adjacentObstacle = getObstacleAt(self.owner.x + 0, self.owner.y + 1, obstacleObjRefs)
-            if adjacentObstacle is None:
-                self.owner.move(0, 1)                            
-            else:
-                print "cannot move over blocked obstacle!"  
-                if adjacentObstacle.fighterComponent is not None:
-                    self.owner.fighterComponent.attack(adjacentObstacle.fighterComponent)
-        elif direction == semanticInputs.UP:
-            self.moveOwner(0,-1)
-        '''
-        #    adjacentObstacle = self.moveOwner(0,1)
-            #if adjacentObstacle is not None:
-                #self.owner.fighterComponent.attack(
-                
 
+'''
+class proto1FovManagerStateChanger(object):
+    def __init__(self, fovEffectRefList):
+        self.fovEffectRefs = fovEffectRefList
+
+    def changeState(self, semanticInput):
+        self.owner.turnTakerCompo.actCount = 0
+        print ' >>><<< '
+        for y in range(gset.WINDOW_HEIGHT):
+            for x in range(gset.WINDOW_WIDTH):
+                fovEffect = self.fovEffectRefs[x][y]()
+                if libtcod.map_is_in_fov(fov_map, x, y):
+                    #fovEffect = gsch.GameObject()
+                    fovEffect.renderCompo.char = ' '
+                else:
+                    fovEffect.renderCompo.char = '*'
+
+class proto1FovManagerAi(object):
+    def calcNextAct(self, nowGameState):
+        return 'do fov'
+'''
 
 inputTable = {ihdr.KeyTuple(libtcod.KEY_ESCAPE, '\x1b'):      semanticInputs.EXIT,
               ihdr.KeyTuple(libtcod.KEY_UP, ihdr.NOT_CHAR):   semanticInputs.UP,
@@ -169,6 +195,8 @@ class proto1OnlyDownAi(object):
 class proto1OnlySkipAi(object):
     def calcNextAct(self, nowGameState):
         return semanticInputs.SKIP
+
+
 
 ################################
 
@@ -201,11 +229,24 @@ tileRefs = [[None
                 for x in range(gset.WINDOW_WIDTH)]
 #막아서는 놈들 저장소: 반드시 여기에 저장되는게 보장되어야 한다.(버그가 없으려면)
 obstacleObjRefs = []
-#진짜 적
+#적
 enemyRefs = []
+#fov effects
+fovEffectRefs = [[None
+                    for y in range(gset.WINDOW_HEIGHT)]
+                    for x in range(gset.WINDOW_WIDTH)]
 #유저
 userRef = None
 
+#FOV 적용하기.
+FOV_ALGO = 0  #default FOV algorithm
+FOV_LIGHT_WALLS = True
+RADIUS = 10
+
+fov_map = libtcod.map_new(gset.WINDOW_WIDTH, gset.WINDOW_HEIGHT)
+libtcod.map_clear(fov_map, transparent=True, walkable=True)
+def computeFov(x, y, radius, lightWalls=True):
+    libtcod.map_compute_fov(fov_map, x,y, radius, lightWalls,FOV_ALGO)
 
 class Test_prototype1(unittest.TestCase):
     def test_prototype1(self):
@@ -215,58 +256,77 @@ class Test_prototype1(unittest.TestCase):
         gset.setLimitFps(gset.LIMIT_FPS)
 
         #맵에 스크린 배치(TODO: 전역객체를 없애는게 좋지 않을까?)
-        global terrainScreen, mapObjScreen, npcScreen, userScreen
+        global terrainScreen, mapObjScreen, npcScreen, userScreen, fovScreen
 
         self.map = Map.Map()
         terrainScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT, backAlphaRatio=1.0)
         mapObjScreen =  gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
         npcScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
+        fovScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT, backAlphaRatio=0.5)
         userScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
         self.map.add(terrainScreen)
         self.map.add(mapObjScreen)
         self.map.add(npcScreen)
+        self.map.add(fovScreen)
         
         #게임 오브젝트 생성 준비
         global gameObjFactory
         gameObjFactory = gfac.GameObjectFactory(grepo.GameObjectRepository())
                         
-        #3.~ 지형 생성
+        # 지형 생성
         for x in range(gset.WINDOW_WIDTH):
             for y in range(gset.WINDOW_HEIGHT):
                 tileRefs[x][y] = gameObjFactory.createGameObject(lambda:createTile(x,y))
-        #3.~ 맵 구성요소 생성 
+        # 맵 구성요소 생성 
         for i in range(13): 
             gameObjFactory.createGameObject(lambda:createTree(i), obstacleObjRefs)
-        '''
-        #3.~ 더미 적 생성
-        dummyRef = gameObjFactory.createGameObject(createDummyEnemy)
-        obstacleObjRefs.append(dummyRef)
-        '''
-        #3.~ 진짜 적 생성
+        
+        # 적 생성
         for i in range(4):
             enemyRef = gameObjFactory.createGameObject(lambda:createEnemy(i*10, i*5),
                                                        obstacleObjRefs, enemyRefs)
             
-        #3.~ 유저 생성
+        # 시야 효과 생성
+        for x in range(gset.WINDOW_WIDTH):
+            for y in range(gset.WINDOW_HEIGHT):
+                fovEffectRefs[x][y] = gameObjFactory.createGameObject(lambda:createFovEffects(x,y))
+
+        '''
+        # 관리자 객체(사실 fov관리는 여기서 안 해..)
+        fovManTTaker = gsch.TurnTaker(1)
+        fovManSChanger = proto1FovManagerStateChanger(fovEffectRefs)
+        fovManager = gsch.GameObject(-1,-1,
+                                     turnTakerComponent=fovManTTaker,
+                                     stateChangerComponent=fovManSChanger)
+        '''
+        # 유저 생성
         global userRef 
         userRef = gameObjFactory.createGameObject(createUserPlayer, obstacleObjRefs)
         user = userRef()
+
+        #fov map 처리
+        for obsRef in obstacleObjRefs:
+            obstacle = obsRef()
+            #obstacleObjRefs에 있는 모든 게임객체가 시야를 가리는건 아냐.
+            #libtcod.map_set_properties(fov_map, obstacle.x, obstacle.y, obstacle.obstacleCompo.blocked, True)
+            libtcod.map_set_properties(fov_map, obstacle.x, obstacle.y, False, True)
         
         #입력 준비        
         self.key = libtcod.Key()
-        
-        #유저와 인공지능과 플레이어(gobj)들
-        playerList = [user, enemyRefs[0](), enemyRefs[1](), enemyRefs[2](), enemyRefs[3](),]                      
+
+        #유저와 인공지능과 플레이어(gobj)와 매니저
+        playerList = [user, 
+                      enemyRefs[0](), enemyRefs[1](), enemyRefs[2](), enemyRefs[3]()]                      
         userList = [ihdr.InputHandler(self.key, inputTable),
                     ihdr.AiInputHandler(playerList[0], proto1OnlyDownAi()),
                     ihdr.AiInputHandler(playerList[1], proto1OnlyUpAi()),
                     ihdr.AiInputHandler(playerList[2], proto1OnlySkipAi()),
-                    ihdr.AiInputHandler(playerList[3], proto1OnlyDownAi())]        
+                    ihdr.AiInputHandler(playerList[3], proto1OnlyDownAi()) ]
                         
         turnSystem = tsys.TurnSystem(userList, playerList, 
                                      self.map,
                                      userScreen)
-
+                        
         #게임 루프
         while not libtcod.console_is_window_closed():
             #턴 시스템 작동.
@@ -444,8 +504,6 @@ class Test_prototype1(unittest.TestCase):
         self.assertEqual(self.player.y, beforeY + 1)
         self.assertEqual(self.other.fighterCompo.hp, beforeTargetHp)
         
-
-
 
 if __name__ == '__main__':
     unittest.main()
