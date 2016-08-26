@@ -20,6 +20,10 @@ class Screen(object):
     def __init__(self, x, y, w, h, 
                  foreColor = libtcod.white, backColor = libtcod.black,
                  foreAlphaRatio = 1.0, backAlphaRatio = 0.0):
+        '''
+        백그라운드 알파값은 기본이 0이다. 백그라운드를 쓰고싶다면 반드시 설정해야 한다.
+        TODO: 하나의 스크린에 있는 글씨를 __다른 알파__로 렌더링할 수 있는가?
+        '''
         self.console = libtcod.console_new(w,h)        
         self.foreColor = foreColor
         self.backColor = backColor        

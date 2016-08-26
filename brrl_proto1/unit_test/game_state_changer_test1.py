@@ -80,10 +80,11 @@ class GameObject(object):
         self.x += dx
         self.y += dy               
 
+
+
         if self.renderCompo is not None:
             self.renderCompo.x += dx
-            self.renderCompo.y += dy
-                    
+            self.renderCompo.y += dy                    
     
     def skip(self):
         self.turnTakerCompo.actCount = 0
@@ -108,25 +109,7 @@ class GameObject(object):
         이후에 GameObject를 새로 작성할 때 반드시 바뀌어야 한다.
         '''
         pass        
-'''
-class Obstacle(object):
-    def __init__(self, obstacleRefs, blocked=False):      
-        self.obstacleRefs = obstacleRefs
-        self._blocked = blocked
 
-    @property
-    def blocked(self):
-        return self._blocked
-
-    @blocked.setter
-    def blocked(self, bool):
-        self._blocked = bool
-        if bool is True:
-            self.obstacleRefs.append(weakref.ref(self.owner))#이거도 겹치는 거 아닌가?
-        else:
-            self.obstacleRefs = []
-            self.obstacleRefs.remove(
-'''
 #리팩토링을 위한 테스트 코드를 써라.
 
 class Obstacle(object):
