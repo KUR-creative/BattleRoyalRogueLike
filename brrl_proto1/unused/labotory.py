@@ -44,7 +44,7 @@ def moveMe():
 
 offscreen_console = libtcod.console_new(15, 15)
 offcon = libtcod.console_new(10,10)
-
+ocon2 = libtcod.console_new(20,20)
 
 def printJump(actor='ass'):
     print actor + ' jumpu'
@@ -128,6 +128,8 @@ i = 0
 #최대 FPS는 LIMIT_FPS만큼 되고 그 FPS마다 렌더링한다.
 while not libtcod.console_is_window_closed() :
     libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
+    if key.vk == libtcod.KEY_ESCAPE:
+        break
     #이벤트를 체크하기 시작하니까 게임이 크래쉬되지 않는다.
 
 ############### 함수를 이용한 커맨드 패턴 ###############
@@ -172,15 +174,36 @@ while not libtcod.console_is_window_closed() :
     #확대는 없다: dstW,H가 원래 콘솔보다 더 크면 더 큰건 그냥 안 그려줘
     #dstW,H가 0이면 원래 콘솔 크기대로 그랴줌
 
+    libtcod.console_set_key_color(offcon, libtcod.blue) #이제 배경색이 파란색이면 블릿팅이 안 된다.
     libtcod.console_set_default_background(offcon, libtcod.red)
-    libtcod.console_set_default_foreground(offcon, libtcod.black)
-    libtcod.console_clear(offcon)
-    libtcod.console_print(offcon, 2, 2, 'wtf??')
-    libtcod.console_blit(offcon, 0,0,0,0, 0 ,0,0, 1, 0.5)
+    libtcod.console_set_default_foreground(offcon, libtcod.green)
+    #libtcod.console_clear(offcon)
+    libtcod.console_set_default_background(offcon, libtcod.blue)
+
+    libtcod.console_print(offcon, 2, 2, 'wtf?????')
+    libtcod.console_put_char_ex(offcon, 2, 3, 'X', libtcod.white, libtcod.blue)
+    libtcod.console_put_char_ex(offcon, 0, 0, u'높', libtcod.white, libtcod.blue)
+    libtcod.console_print(offcon, 1,1, u'나') #console_print가 아니면 유니코드를 출력할 수 없다. 그렇겠지..
+
+    libtcod.console_set_default_background(offcon, libtcod.blue)
+    libtcod.console_print(offcon, 0, 4, u'이건 보이네???')
+    libtcod.console_put_char_ex(offcon, 4, 3, 'X', libtcod.white, libtcod.blue) #이건 안 보임
+    
+    libtcod.console_blit(offcon, 0,0,0,0, 0 ,10,10, 1, 0.5)
     #console_blit는 rootconsole에만 가능한 거 같다?
     #왜 다른 콘솔에는 시바 출력이 안되냐? ㅄ같넹
     
+    libtcod.console_set_default_background(ocon2, libtcod.white)
+    libtcod.console_set_default_foreground(ocon2, libtcod.black)
+    libtcod.console_clear(ocon2)
+    libtcod.console_print(ocon2, 0, 0, 'aaassss') #이거 왜 안돼?
+    libtcod.console_blit(ocon2, 10,10,0,0, 0, 15,15, 1.0,1.0)
+
     libtcod.console_flush() #이거 없으면 출력이 안 돼.
+
+    
+
+
 
     libtcod.console_print(0, 5, 15, str(i)) 
     i += 1

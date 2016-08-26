@@ -6,7 +6,7 @@
     <ProjectGuid>eb8b265f-9198-482f-abd8-67d081aedbe7</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>unit_test\run_all_tests.py</StartupFile>
+    <StartupFile>unused\labotory.py</StartupFile>
     <SearchPath>.</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>

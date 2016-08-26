@@ -28,10 +28,15 @@ semanticInputs = util.enum('UP', 'DOWN', 'LEFT', 'RIGHT', 'SKIP', 'EXIT')
 #### make functions ####
 def createTile(x,y):     
     tile = gui.RenderObject(terrainScreen,
-                            'tile'+ str(x+y), str(x+y)[-1],
-                            x,y, backColor=libtcod.white)
+                            'tile'+ str(x+y), ' ',
+                            x,y, backColor=libtcod.green)
     return gsch.GameObject(x,y, tile)
-
+    '''
+    tile = gui.RenderObject(terrainScreen,
+                            'tile'+ str(x+y), str(x+y)[-1],
+                            x,y, backColor=libtcod.darker_blue)
+    return gsch.GameObject(x,y, tile)
+    '''
 def createTree(num):
     tree = gui.RenderObject(mapObjScreen,
                             'tree'+ str(num), u'●',
@@ -58,8 +63,8 @@ def createEnemy(x,y):
 
 def createFovEffects(x,y):    
     cell = gui.RenderObject(fovScreen,
-                            'fovCell'+ str(x+y), ' ',
-                            x,y, foreColor=libtcod.black, backColor=libtcod.black)
+                            'fovCell'+ str(x+y), '*',
+                            x,y, foreColor=libtcod.red, backColor=libtcod.white)
     return gsch.GameObject(x,y, cell)
 
 def createUserPlayer():       
@@ -67,10 +72,10 @@ def createUserPlayer():
     initY = gset.WINDOW_HEIGHT/2
     rCompo = gui.RenderObject(userScreen,'user',u'나', 
                               initX,initY,
-                              foreColor=libtcod.black)
+                              foreColor=libtcod.white)
     obsCompo = gsch.Obstacle(True)
     fCompo = gsch.Fighter(30,5)
-    tCompo = gsch.TurnTaker(2)
+    tCompo = gsch.TurnTaker(1)
     return gsch.GameObject(initX, initY,                            
                            renderComponent=rCompo, 
                            obstacleComponent=obsCompo,
@@ -119,19 +124,28 @@ class proto1StateChangerCompo(object):
 
         #recompute fov!
         computeFov(self.owner.x, self.owner.y, 15)      
+
+                    
         #render fov!
         if self.owner == userRef():
+            for enemyRef in enemyRefs:
+                enemy = enemyRef()
+                #enemy = gsch.GameObject()
+                if libtcod.map_is_in_fov(fov_map, enemy.x, enemy.y):
+                    enemy.renderCompo.visible = True
+                else:
+                    enemy.renderCompo.visible = False
+        
             for y in range(gset.WINDOW_HEIGHT):
                 for x in range(gset.WINDOW_WIDTH):
                     #TODO: 이것도 전역변수보단 나중에 생성자에서 주입해줘야겠지.
                     fovEffect = fovEffectRefs[x][y]()
-                    if libtcod.map_is_in_fov(fov_map, x, y):
-                        #fovEffect = gsch.GameObject()
-                        fovEffect.renderCompo.char = ' '
-                        fovEffect.renderCompo.backColor = libtcod.white
-                    else:
-                        fovEffect.renderCompo.char = ' '
-                        fovEffect.renderCompo.backColor = libtcod.black
+                                        
+                    if libtcod.map_is_in_fov(fov_map, x, y):                        
+                        fovEffect.renderCompo.visible = False                        
+                    else:                        
+                        fovEffect.renderCompo.visible = True
+                        
 
         if semanticInput == semanticInputs.SKIP:
             self.owner.skip()
@@ -262,7 +276,10 @@ class Test_prototype1(unittest.TestCase):
         terrainScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT, backAlphaRatio=1.0)
         mapObjScreen =  gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
         npcScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
-        fovScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT, backAlphaRatio=0.5)
+        fovScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT, backAlphaRatio=1.0)
+        print '>>>>>>>>>>>>>>>>>>>>>', fovScreen.console, '<<<<<<<<<<<<<<<<<<<<<<<'
+        print 'bkgn color:', libtcod.console_get_default_background(fovScreen.console)
+        print 'bkgn color:', libtcod.console_get_default_foreground(fovScreen.console)
         userScreen = gui.Screen(0,0, gset.WINDOW_WIDTH,gset.WINDOW_HEIGHT)
         self.map.add(terrainScreen)
         self.map.add(mapObjScreen)

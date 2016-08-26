@@ -15,8 +15,6 @@ sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from UI import gui
 
 
-
-
 class Test_gui(unittest.TestCase):
     def setUp(self):
         #윈도우, 루트콘솔 셋팅
